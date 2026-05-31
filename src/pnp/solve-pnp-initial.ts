@@ -4,6 +4,7 @@
 import type { Pose, PoseEstimationFailureReason } from "../core/types.js";
 import { solveEpnpInitialPose } from "./epnp/epnp-solver.js";
 import type { EstimatePoseInput } from "./estimate-pose-types.js";
+import { solvePnPDlt } from "./solve-pnp-dlt.js";
 import { validateEstimatePoseInput } from "./validate-estimate-input.js";
 
 export interface SolvePnPInitialSuccess {
@@ -19,17 +20,7 @@ export interface SolvePnPInitialFailure {
 
 export type SolvePnPInitialResult = SolvePnPInitialSuccess | SolvePnPInitialFailure;
 
-/** Solves an initial cameraFromObject pose using EPnP. */
-export function solvePnPInitial(input: EstimatePoseInput): SolvePnPInitialResult {
-  const validationReason = validateEstimatePoseInput(input);
-
-  if (validationReason !== null) {
-    return {
-      success: false,
-      reason: validationReason,
-    };
-  }
-
+function solveEpnpInitial(input: EstimatePoseInput): SolvePnPInitialResult {
   try {
     const epnpResult = solveEpnpInitialPose({
       objectPoints: input.objectPoints,
@@ -52,4 +43,36 @@ export function solvePnPInitial(input: EstimatePoseInput): SolvePnPInitialResult
       reason: "degenerateConfiguration",
     };
   }
+}
+
+/** Solves an initial cameraFromObject pose using the best available cold-start candidate. */
+export function solvePnPInitial(input: EstimatePoseInput): SolvePnPInitialResult {
+  const validationReason = validateEstimatePoseInput(input);
+
+  if (validationReason !== null) {
+    return {
+      success: false,
+      reason: validationReason,
+    };
+  }
+
+  const epnpResult = solveEpnpInitial(input);
+  const dltResult = solvePnPDlt(input);
+
+  if (!epnpResult.success) {
+    return dltResult;
+  }
+
+  if (
+    dltResult.success &&
+    dltResult.meanReprojectionErrorPx < epnpResult.meanReprojectionErrorPx
+  ) {
+    return {
+      success: true,
+      pose: dltResult.pose,
+      meanReprojectionErrorPx: dltResult.meanReprojectionErrorPx,
+    };
+  }
+
+  return epnpResult;
 }

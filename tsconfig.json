@@ -9,6 +9,10 @@
     "sourceMap": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "kibo-track": ["src/index.ts"]
+    },
     "outDir": "dist",
     "rootDir": "."
   },

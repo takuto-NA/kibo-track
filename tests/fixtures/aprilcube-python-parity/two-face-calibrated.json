@@ -1,0 +1,22 @@
+{
+  "description": "Two-face calibrated pose parity fixture (golden values from kibo-track synthetic reference).",
+  "aprilCubeConfig": {
+    "cubeSizeMeters": 0.2,
+    "markerIds": [10, 11]
+  },
+  "cameraIntrinsics": {
+    "focalLengthX": 900,
+    "focalLengthY": 900,
+    "principalPointX": 640,
+    "principalPointY": 360
+  },
+  "expectedResult": {
+    "success": true,
+    "poseMode": "multiFace",
+    "translationToleranceMeters": 0.001,
+    "rotationToleranceRadians": 0.02,
+    "maxMeanReprojectionErrorPx": 1,
+    "groundTruthTranslation": [0.05, -0.03, 0.2],
+    "groundTruthRotation": [0, 0, 0, 1]
+  }
+}

@@ -10,6 +10,7 @@ const CLOCKWISE_ROTATE_90_SOURCE_TO_CANONICAL = [1, 2, 3, 0] as const;
 const CLOCKWISE_ROTATE_180_SOURCE_TO_CANONICAL = [2, 3, 0, 1] as const;
 const CLOCKWISE_ROTATE_270_SOURCE_TO_CANONICAL = [3, 0, 1, 2] as const;
 const REVERSE_SOURCE_TO_CANONICAL = [0, 3, 2, 1] as const;
+const REVERSED_CANONICAL_SOURCE_TO_CANONICAL = [3, 2, 1, 0] as const;
 
 function resolveCornerOrderPermutation(
   cornerOrderName: AprilCubeCornerOrderName,
@@ -30,7 +31,11 @@ function resolveCornerOrderPermutation(
     return CLOCKWISE_ROTATE_270_SOURCE_TO_CANONICAL;
   }
 
-  return REVERSE_SOURCE_TO_CANONICAL;
+  if (cornerOrderName === "reverse") {
+    return REVERSE_SOURCE_TO_CANONICAL;
+  }
+
+  return REVERSED_CANONICAL_SOURCE_TO_CANONICAL;
 }
 
 /** Reorders one marker's corners into canonical adapter order. */

@@ -69,6 +69,7 @@ export type PoseEstimationFailureReason =
   | "notEnoughPoints"
   | "notEnoughInliers"
   | "degenerateConfiguration"
+  | "planarAmbiguous"
   | "invalidInput";
 
 /** Result-style API shape for recoverable estimation failures (reserved for v0.3+). */

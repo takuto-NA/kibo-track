@@ -1,11 +1,13 @@
 /**
  * Maps the printed AprilCube layout JSON to kibo-track AprilCubeConfig.
  */
-import type { AprilCubeConfig, AprilCubeFaceName } from "kibo-track";
+import type { AprilCubeConfig, AprilCubeCuboidLayout, AprilCubeFaceName } from "kibo-track";
 import type { AprilCubeLayoutJson, CornerOrderSelection } from "./types.js";
 
 /** Millimeters per meter for layout JSON unit conversion. */
 const MILLIMETERS_PER_METER = 1000;
+
+const GRID_DIMENSION_COUNT = 3;
 
 const FACE_AXIS_TO_APRILCUBE_FACE: Readonly<Record<string, AprilCubeFaceName>> = {
   "+X": "right",
@@ -42,6 +44,39 @@ export function convertMillimetersToMeters(sizeMillimeters: number): number {
   return sizeMillimeters / MILLIMETERS_PER_METER;
 }
 
+/** Parses AprilCube grid string "WxHxD" into tag counts per axis. */
+export function parseAprilCubeGridString(
+  gridString: string,
+): readonly [number, number, number] {
+  const gridParts = gridString.split("x").map((part) => Number(part));
+
+  if (gridParts.length !== GRID_DIMENSION_COUNT || gridParts.some((part) => !Number.isInteger(part) || part < 1)) {
+    throw new RangeError(`Invalid AprilCube grid string: ${gridString}`);
+  }
+
+  return [gridParts[0]!, gridParts[1]!, gridParts[2]!];
+}
+
+/** Builds cuboid layout parameters from AprilCube config.json fields. */
+export function buildCuboidLayoutFromLayoutJson(
+  layoutJson: AprilCubeLayoutJson,
+): AprilCubeCuboidLayout {
+  return {
+    grid: parseAprilCubeGridString(layoutJson.grid),
+    tagIds: [...layoutJson.tag_ids],
+    tagSizeMeters: convertMillimetersToMeters(layoutJson.tag_size_mm),
+    cellSizeMeters: convertMillimetersToMeters(layoutJson.cell_size_mm),
+    marginCells: layoutJson.margin_cells,
+    borderCells: layoutJson.border_cells,
+    markerPixels: layoutJson.marker_pixels,
+    boxDimensionsMeters: [
+      convertMillimetersToMeters(layoutJson.box_dims[0]),
+      convertMillimetersToMeters(layoutJson.box_dims[1]),
+      convertMillimetersToMeters(layoutJson.box_dims[2]),
+    ],
+  };
+}
+
 /** Builds AprilCubeConfig from the layout JSON and optional corner order. */
 export function buildAprilCubeConfigFromLayoutJson(
   layoutJson: AprilCubeLayoutJson,
@@ -65,5 +100,6 @@ export function buildAprilCubeConfigFromLayoutJson(
     cubeSize: convertMillimetersToMeters(layoutJson.box_dims[0]),
     faces: faceMap,
     cornerOrder,
+    cuboidLayout: buildCuboidLayoutFromLayoutJson(layoutJson),
   };
 }

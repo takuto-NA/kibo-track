@@ -61,4 +61,19 @@ describe("AprilCube corner order normalization", () => {
     const normalizedCorners = normalizeMarkerCornerOrder(reversedCorners, "reverse");
     expect(normalizedCorners).toEqual([...CANONICAL_CORNERS]);
   });
+
+  it("normalizes detector order that is the full reverse of canonical", () => {
+    const reversedCanonicalCorners: ImagePoint2D[] = [
+      CANONICAL_CORNERS[3]!,
+      CANONICAL_CORNERS[2]!,
+      CANONICAL_CORNERS[1]!,
+      CANONICAL_CORNERS[0]!,
+    ];
+
+    const normalizedCorners = normalizeMarkerCornerOrder(
+      reversedCanonicalCorners,
+      "reversedCanonical",
+    );
+    expect(normalizedCorners).toEqual([...CANONICAL_CORNERS]);
+  });
 });

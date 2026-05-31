@@ -30,13 +30,27 @@ export type AprilCubeCornerOrderName =
   | "clockwiseRotate90"
   | "clockwiseRotate180"
   | "clockwiseRotate270"
-  | "reverse";
+  | "reverse"
+  | "reversedCanonical";
+
+/** Cuboid grid layout parameters from AprilCube config.json. */
+export interface AprilCubeCuboidLayout {
+  readonly grid: readonly [number, number, number];
+  readonly tagIds: readonly number[];
+  readonly tagSizeMeters: number;
+  readonly cellSizeMeters: number;
+  readonly marginCells: number;
+  readonly borderCells: number;
+  readonly markerPixels: number;
+  readonly boxDimensionsMeters: readonly [number, number, number];
+}
 
 /** AprilCube geometry and marker-to-face configuration. */
 export interface AprilCubeConfig {
   readonly cubeSize: number;
   readonly faces: AprilCubeFaceMap;
   readonly cornerOrder?: AprilCubeCornerOrderName;
+  readonly cuboidLayout?: AprilCubeCuboidLayout;
 }
 
 /** Detected marker corners from an external detector. */
@@ -85,6 +99,19 @@ export interface EstimateAprilCubePoseInput {
   readonly cameraIntrinsics: CameraIntrinsics;
 }
 
+/** AprilCube pose estimation mode reported in diagnostics. */
+export type AprilCubePoseMode =
+  | "multiFace"
+  | "singleFacePlanar"
+  | "planarAmbiguous";
+
+/** Per-marker reprojection diagnostic for adapter diagnostics. */
+export interface AprilCubeMarkerReprojectionDiagnostic {
+  readonly markerId: number;
+  readonly meanReprojectionErrorPx: number;
+  readonly cornerCount: number;
+}
+
 /** Successful AprilCube pose estimation with adapter metadata. */
 export interface EstimateAprilCubePoseSuccess extends EstimatePoseSuccess {
   readonly detectedMarkerCount: number;
@@ -92,6 +119,13 @@ export interface EstimateAprilCubePoseSuccess extends EstimatePoseSuccess {
   readonly correspondenceMarkerIds: ReadonlyArray<number>;
   readonly correspondenceCornerIndices: ReadonlyArray<number>;
   readonly outlierMarkerDiagnostics: ReadonlyArray<AprilCubeCornerDiagnostic>;
+  readonly poseMode: AprilCubePoseMode;
+  readonly visibleFaceCount: number;
+  readonly detectedMarkerIds: ReadonlyArray<number>;
+  readonly planarCandidateCount?: number;
+  readonly planarAmbiguityScore?: number;
+  readonly markerReprojectionDiagnostics: ReadonlyArray<AprilCubeMarkerReprojectionDiagnostic>;
+  readonly rejectedMarkerIds: ReadonlyArray<number>;
 }
 
 /** Identifies one correspondence by marker ID and corner index. */

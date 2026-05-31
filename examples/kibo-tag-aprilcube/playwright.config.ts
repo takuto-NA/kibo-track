@@ -31,6 +31,14 @@ export default defineConfig({
         },
       },
     },
+    {
+      name: "chromium-static-image",
+      testMatch: /static-aprilcube-image\.spec\.ts/,
+      timeout: 600_000,
+      use: {
+        ...devices["Desktop Chrome"],
+      },
+    },
     ...(process.env.RUN_REAL_CAMERA
       ? [
           {

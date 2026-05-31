@@ -144,7 +144,7 @@ describe("estimateAprilCubePose integration", () => {
     expect(result.numInliers).toBeGreaterThanOrEqual(7);
   });
 
-  it("returns degenerateConfiguration for single-face planar pose attempts", () => {
+  it("returns singleFacePlanar for one marker without prior when one candidate resolves", () => {
     const result = estimateAprilCubePose(
       {
         markers: createSingleFaceAprilCubeMarkers(),
@@ -154,13 +154,12 @@ describe("estimateAprilCubePose integration", () => {
       { enableRansac: false },
     );
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
 
-    if (result.success) {
+    if (!result.success) {
       return;
     }
 
-    expect(result.stage).toBe("poseEstimation");
-    expect(result.reason).toBe("degenerateConfiguration");
+    expect(result.poseMode).toBe("singleFacePlanar");
   });
 });

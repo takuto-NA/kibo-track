@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AprilCube Static Image Verification</title>
+    <link rel="icon" href="data:," />
+    <style>
+      body {
+        margin: 0;
+        background: #111;
+        color: #eee;
+        font-family: system-ui, sans-serif;
+      }
+
+      main {
+        padding: 1rem;
+      }
+
+      #viewport {
+        position: relative;
+        display: inline-block;
+        max-width: 100%;
+      }
+
+      #capture-canvas,
+      #overlay-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: auto;
+      }
+
+      #capture-canvas {
+        visibility: hidden;
+      }
+
+      #overlay-canvas {
+        position: relative;
+      }
+
+      pre {
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>AprilCube Static Image Verification</h1>
+      <p id="verify-status" data-testid="verify-status">loading</p>
+      <pre id="verify-diagnostics" data-testid="verify-diagnostics">Waiting...</pre>
+      <div id="viewport">
+        <canvas id="capture-canvas"></canvas>
+        <canvas id="overlay-canvas" data-testid="overlay-canvas"></canvas>
+      </div>
+    </main>
+    <script type="module" src="/src/static-image-verify.ts"></script>
+  </body>
+</html>

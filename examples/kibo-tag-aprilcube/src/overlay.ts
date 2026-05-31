@@ -10,6 +10,7 @@ import {
   type ObjectPoint3D,
   type Pose,
 } from "kibo-track";
+import { distortImagePoints } from "./camera-distortion.js";
 import {
   AXIS_LENGTH_CUBE_UNITS,
   AXIS_X_COLOR,
@@ -26,6 +27,7 @@ export interface OverlayDrawInput {
   readonly pose: Pose | null;
   readonly cubeSizeMeters: number;
   readonly cameraIntrinsics: CameraIntrinsics;
+  readonly distortionCoefficients?: readonly number[];
 }
 
 const CUBE_EDGE_INDEX_PAIRS: ReadonlyArray<readonly [number, number]> = [
@@ -64,9 +66,14 @@ export function projectCubeWireframe(
   pose: Pose,
   cubeSizeMeters: number,
   cameraIntrinsics: CameraIntrinsics,
+  distortionCoefficients?: readonly number[],
 ): ImagePoint2D[][] {
   const cubeVertices = buildCubeCornerVertices(cubeSizeMeters);
-  const projectedVertices = projectPoints(cubeVertices, pose, cameraIntrinsics);
+  const projectedVertices = distortImagePoints(
+    projectPoints(cubeVertices, pose, cameraIntrinsics),
+    cameraIntrinsics,
+    distortionCoefficients,
+  );
 
   return CUBE_EDGE_INDEX_PAIRS.map(([startIndex, endIndex]) => {
     const startPoint = projectedVertices[startIndex];
@@ -151,12 +158,17 @@ function drawPoseAxes(
   canvasContext: CanvasRenderingContext2D,
   pose: Pose,
   cameraIntrinsics: CameraIntrinsics,
+  distortionCoefficients?: readonly number[],
 ): void {
   const origin: ObjectPoint3D = [0, 0, 0];
   const axisX: ObjectPoint3D = [AXIS_LENGTH_CUBE_UNITS, 0, 0];
   const axisY: ObjectPoint3D = [0, AXIS_LENGTH_CUBE_UNITS, 0];
   const axisZ: ObjectPoint3D = [0, 0, AXIS_LENGTH_CUBE_UNITS];
-  const projectedAxes = projectPoints([origin, axisX, axisY, axisZ], pose, cameraIntrinsics);
+  const projectedAxes = distortImagePoints(
+    projectPoints([origin, axisX, axisY, axisZ], pose, cameraIntrinsics),
+    cameraIntrinsics,
+    distortionCoefficients,
+  );
   const projectedOrigin = projectedAxes[0];
   const projectedAxisX = projectedAxes[1];
   const projectedAxisY = projectedAxes[2];
@@ -196,9 +208,15 @@ export function drawOverlay(input: OverlayDrawInput): void {
     input.pose,
     input.cubeSizeMeters,
     input.cameraIntrinsics,
+    input.distortionCoefficients,
   );
   drawProjectedLineSegments(canvasContext, wireframeSegments, CUBE_WIREFRAME_STROKE_COLOR);
-  drawPoseAxes(canvasContext, input.pose, input.cameraIntrinsics);
+  drawPoseAxes(
+    canvasContext,
+    input.pose,
+    input.cameraIntrinsics,
+    input.distortionCoefficients,
+  );
 }
 
 /** Returns projected front-face corners for synthetic overlay tests. */

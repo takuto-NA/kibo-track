@@ -27,6 +27,10 @@ export interface EstimatePoseOptions {
   /** Optional seed for deterministic RANSAC sampling in tests. */
   readonly randomSeed?: number;
   readonly maxRefinementIterations?: number;
+  /** Optional previous pose used for planar disambiguation (AprilCube adapter). */
+  readonly previousPose?: import("../core/types.js").Pose;
+  /** Internal: skip one-pass marker outlier re-solve (prevents recursion). */
+  readonly skipOutlierResolve?: boolean;
 }
 
 /** Successful pose measurement with inspectable quality metrics. */

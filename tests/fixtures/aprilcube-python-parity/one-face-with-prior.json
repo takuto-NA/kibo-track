@@ -1,0 +1,8 @@
+{
+  "description": "Single-face with previous pose prior should succeed in planar mode.",
+  "expectedResult": {
+    "success": true,
+    "poseMode": "singleFacePlanar",
+    "translationToleranceMeters": 0.01
+  }
+}

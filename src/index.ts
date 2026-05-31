@@ -68,6 +68,7 @@ export type {
   AprilCubeCorrespondencesFailure,
   AprilCubeCorrespondencesResult,
   AprilCubeCorrespondencesSuccess,
+  AprilCubeCuboidLayout,
   AprilCubeFaceMap,
   AprilCubeFaceName,
   AprilCubeObjectPointMap,
@@ -82,5 +83,6 @@ export type {
 export { buildAprilCubeCorrespondences } from "./aprilcube/build-correspondences.js";
 export { buildAprilCubeObjectPointMap } from "./aprilcube/build-object-point-map.js";
 export { buildFaceObjectCorners } from "./aprilcube/cube-corners.js";
+export { buildAprilCubeTagCornerObjectPointMap } from "./aprilcube/tag-corners.js";
 export { estimateAprilCubePose } from "./aprilcube/estimate-aprilcube-pose.js";
 export { isValidAprilCubeConfig } from "./aprilcube/validate-config.js";

@@ -33,6 +33,31 @@ describe("scaleCameraIntrinsicsToCaptureResolution", () => {
     expect(scaledIntrinsics.principalPointX).toBeCloseTo(320);
     expect(scaledIntrinsics.principalPointY).toBeCloseTo(180);
   });
+
+  it("scales calibrated intrinsics from calibration resolution to capture resolution", () => {
+    const calibratedReferenceIntrinsics: ReferenceCameraIntrinsics = {
+      referenceWidth: 1280,
+      referenceHeight: 720,
+      isPlaceholder: false,
+      intrinsics: {
+        focalLengthX: 700,
+        focalLengthY: 700,
+        principalPointX: 640,
+        principalPointY: 360,
+      },
+    };
+
+    const scaledIntrinsics = scaleCameraIntrinsicsToCaptureResolution(
+      calibratedReferenceIntrinsics,
+      640,
+      480,
+    );
+
+    expect(scaledIntrinsics.focalLengthX).toBeCloseTo(350);
+    expect(scaledIntrinsics.focalLengthY).toBeCloseTo(466.666, 2);
+    expect(scaledIntrinsics.principalPointX).toBeCloseTo(320);
+    expect(scaledIntrinsics.principalPointY).toBeCloseTo(240);
+  });
 });
 
 describe("validateResolutionConsistency", () => {

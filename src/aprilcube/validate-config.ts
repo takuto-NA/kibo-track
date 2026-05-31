@@ -42,6 +42,57 @@ function hasDuplicateFaceAssignment(
   return false;
 }
 
+function isPositiveFiniteNumber(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+function isNonNegativeInteger(value: number): boolean {
+  return Number.isInteger(value) && value >= 0;
+}
+
+function isValidCuboidLayout(config: AprilCubeConfig): boolean {
+  const cuboidLayout = config.cuboidLayout;
+
+  if (cuboidLayout === undefined) {
+    return true;
+  }
+
+  if (
+    cuboidLayout.grid.length !== 3 ||
+    cuboidLayout.grid.some((gridCount) => !Number.isInteger(gridCount) || gridCount < 1)
+  ) {
+    return false;
+  }
+
+  if (cuboidLayout.tagIds.length === 0 || cuboidLayout.tagIds.some((tagId) => !Number.isInteger(tagId))) {
+    return false;
+  }
+
+  if (
+    !isPositiveFiniteNumber(cuboidLayout.tagSizeMeters) ||
+    !isPositiveFiniteNumber(cuboidLayout.cellSizeMeters) ||
+    !isPositiveFiniteNumber(cuboidLayout.markerPixels)
+  ) {
+    return false;
+  }
+
+  if (
+    !isNonNegativeInteger(cuboidLayout.marginCells) ||
+    !isNonNegativeInteger(cuboidLayout.borderCells)
+  ) {
+    return false;
+  }
+
+  if (
+    cuboidLayout.boxDimensionsMeters.length !== 3 ||
+    cuboidLayout.boxDimensionsMeters.some((dimension) => !isPositiveFiniteNumber(dimension))
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 /** Returns whether the AprilCube config is valid for correspondence building. */
 export function isValidAprilCubeConfig(config: AprilCubeConfig): boolean {
   if (!Number.isFinite(config.cubeSize) || config.cubeSize <= 0) {
@@ -65,6 +116,10 @@ export function isValidAprilCubeConfig(config: AprilCubeConfig): boolean {
   }
 
   if (hasDuplicateFaceAssignment(config.faces)) {
+    return false;
+  }
+
+  if (!isValidCuboidLayout(config)) {
     return false;
   }
 

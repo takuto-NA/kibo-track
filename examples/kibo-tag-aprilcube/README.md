@@ -60,7 +60,7 @@ Open `http://localhost:5173`.
 
 ## AprilCube layout
 
-The example uses this layout:
+The example uses this layout (matching [AprilCube](https://github.com/younghyopark/aprilcube) `config.json`):
 
 - marker `0`: `+X` -> `right`
 - marker `1`: `-X` -> `left`
@@ -69,6 +69,35 @@ The example uses this layout:
 - marker `4`: `+Z` -> `front`
 - marker `5`: `-Z` -> `back`
 - cube size: `32 mm` -> `0.032 m`
+- tag size: `24 mm` (inset from face edges by border cells)
+
+Pose estimation uses **tag corner 3D** (`cuboidLayout` on `AprilCubeConfig`), not full face outer corners. This matches AprilCube detector geometry and kibo-tag tag detections.
+
+## Corner order
+
+Tag 3D corners follow OpenCV / AprilCube `[TL, TR, BR, BL]` after adapter permutation.
+
+**kibo-tag WASM returns corners in reverse order.** The example defaults to **`reversedCanonical`** in the UI, live app, and static verifier. Use **canonical** only when integrating a detector that already matches OpenCV order.
+
+Regression: `tests/aprilcube/static-image-detected-corners.regression.test.ts` (canonical vs reversedCanonical A/B on static photo corners).
+
+## Static image verification
+
+Photos under `examples/data/` are local-only (gitignored). Corner fixtures used in CI live in `tests/fixtures/static-aprilcube-photo-corners.ts`.
+
+1. Copy AprilCube photos into `examples/data/`
+2. Run the dev server: `npm run dev`
+3. Open static verifier, for example:
+
+   `http://localhost:5173/static-image-verify.html?image=/examples/data/YOUR_PHOTO.jpg&calibration=/examples/data/verification-output/opencv-calibrated-from-examples-data.json`
+
+4. Confirm overlay PNG **visually** — low reprojection error alone is not sufficient (see ADR 0002)
+
+Optional Playwright gate (requires local photos):
+
+```bash
+npm run test:browser -- e2e/static-aprilcube-image.spec.ts
+```
 
 ## Gates
 
@@ -120,8 +149,9 @@ Browser tests also collect:
 
 ## Limitations
 
-- Camera intrinsics are placeholder values. Pose is approximate until calibrated intrinsics are supplied.
-- v0.4 does not support reliable single-face planar pose. One visible face may return `degenerateConfiguration`.
+- Camera intrinsics are placeholder values until calibration JSON is pasted/applied. Pose is approximate without calibrated `camera_matrix` and `dist_coeffs`.
+- Single-face planar pose is supported when `cuboidLayout` is set; PoseFacingCamera gate rejects mirror solutions (ADR 0002).
+- Lens undistort/distort runs in this example only; kibo-track core remains pinhole (ADR 0003).
 - kibo-tag WASM artifacts are not bundled with `kibo-track`.
 - Real-camera detection quality depends on lighting, focus, print quality, and camera permissions.
 
@@ -135,4 +165,5 @@ Browser tests also collect:
 | `deviceBusyOrUnavailable` | Another app is using the camera |
 | `captureCanvasMismatch` | Video resolution and canvas backing size diverged |
 | `wasmMissing` | Copy `apriltag_wasm.js` into `public/vendor/kibo-tag/` |
-| `degenerateConfiguration` | Only one cube face is visible; show at least two non-coplanar faces |
+| `degenerateConfiguration` | Too few correspondences or planar ambiguity without a valid PoseFacingCamera candidate |
+| wireframe misaligned, markers OK | Wrong corner order (kibo-tag needs `reversedCanonical`), missing calibration/distortion, or mirror pose |

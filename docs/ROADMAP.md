@@ -56,6 +56,7 @@
 
 **Exit criteria**:
 - cube center origin の 3D corner map
+- cuboid `config.json` 互換の **tag corner 3D**（`AprilCubeCuboidLayout` / `buildAprilCubeTagCornerObjectPointMap`）
 - corner order 設定で detector 差を吸収
 - core は marker 非依存のまま
 - `buildAprilCubeCorrespondences` が marker ID / corner index メタデータ付きで 2D–3D correspondences を返す
@@ -87,7 +88,7 @@
 **Goal**: 実運用向けの互換性と性能改善。
 
 **Exit criteria**:
-- distortion support
+- distortion support in core public API (example layer parity: ADR 0003 until then)
 - marker-aware RANSAC
 - OpenCV behavioral fixtures (tolerance-based)
 - benchmark baseline

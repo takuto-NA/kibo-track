@@ -3,6 +3,7 @@
  */
 import type { ObjectPoint3D } from "../core/types.js";
 import { buildFaceObjectCorners } from "./cube-corners.js";
+import { buildAprilCubeTagCornerObjectPointMap } from "./tag-corners.js";
 import { isValidAprilCubeConfig } from "./validate-config.js";
 import type { AprilCubeConfig, AprilCubeObjectPointMap } from "./types.js";
 
@@ -10,6 +11,10 @@ import type { AprilCubeConfig, AprilCubeObjectPointMap } from "./types.js";
 export function buildAprilCubeObjectPointMapUnchecked(
   config: AprilCubeConfig,
 ): AprilCubeObjectPointMap {
+  if (config.cuboidLayout !== undefined) {
+    return buildAprilCubeTagCornerObjectPointMap(config);
+  }
+
   const objectPointMap: Record<number, readonly ObjectPoint3D[]> = {};
 
   for (const [markerIdText, faceName] of Object.entries(config.faces)) {

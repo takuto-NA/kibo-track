@@ -1,0 +1,7 @@
+{
+  "description": "Single-face without prior should report planarAmbiguous.",
+  "expectedResult": {
+    "success": true,
+    "poseMode": "singleFacePlanar"
+  }
+}

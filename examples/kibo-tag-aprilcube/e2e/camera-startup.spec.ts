@@ -45,4 +45,17 @@ test.describe("camera startup browser gate", () => {
 
     diagnosticsCollector.assertClean();
   });
+
+  test("shows a single preview layer after camera startup", async ({ page }) => {
+    await page.goto("/");
+    await page.locator("#start-camera-button").click();
+
+    await expect(page.locator("#app-status")).toHaveText("resolutionReady", {
+      timeout: 30_000,
+    });
+
+    await expect(page.locator("#camera-video")).toBeHidden();
+    await expect(page.locator("#capture-canvas")).toBeHidden();
+    await expect(page.locator("#overlay-canvas")).toBeVisible();
+  });
 });

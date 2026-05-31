@@ -6,6 +6,7 @@ import {
   type CameraIntrinsics,
   type DetectedMarkerCorners,
   type EstimateAprilCubePoseResult,
+  type Pose,
 } from "kibo-track";
 import {
   buildAprilCubeConfigFromLayoutJson,
@@ -19,7 +20,15 @@ import {
   type KiboTagApriltagInstance,
 } from "./kibo-tag-detector.js";
 import { drawOverlay } from "./overlay.js";
-import { createPlaceholderReferenceCameraIntrinsics } from "./reference-intrinsics.js";
+import { undistortDetectedMarkers } from "./camera-distortion.js";
+import { parseCalibrationJson } from "./parse-calibration-json.js";
+import { PoseTracker } from "./pose-tracker.js";
+import {
+  clearPersistedCalibration,
+  persistCalibrationJson,
+  resolveReferenceCameraIntrinsics,
+  type IntrinsicsSourceLabel,
+} from "./resolve-reference-intrinsics.js";
 import {
   synchronizeOverlayCanvasSize,
   validateResolutionConsistency,
@@ -30,6 +39,10 @@ interface AppDomElements {
   readonly startCameraButton: HTMLButtonElement;
   readonly startDetectorButton: HTMLButtonElement;
   readonly cornerOrderSelect: HTMLSelectElement;
+  readonly calibrationJsonInput: HTMLTextAreaElement;
+  readonly applyCalibrationButton: HTMLButtonElement;
+  readonly clearCalibrationButton: HTMLButtonElement;
+  readonly calibrationStatusElement: HTMLElement;
   readonly appStatusElement: HTMLElement;
   readonly cameraStatusElement: HTMLElement;
   readonly resolutionStatusElement: HTMLElement;
@@ -47,17 +60,24 @@ interface AppRuntimeState {
   detector: KiboTagApriltagInstance | null;
   scaledCameraIntrinsics: CameraIntrinsics | null;
   resolutionSnapshot: ResolutionSnapshot | null;
-  intrinsicsArePlaceholder: boolean;
+  intrinsicsSource: IntrinsicsSourceLabel;
+  distortionCoefficients: readonly number[];
   detectedMarkers: DetectedMarkerCorners[];
   latestPoseResult: EstimateAprilCubePoseResult | null;
+  trackedPose: Pose | null;
   animationFrameIdentifier: number | null;
   isProcessingTrackingFrame: boolean;
+  poseTracker: PoseTracker;
 }
 
 function readDomElements(): AppDomElements {
   const startCameraButton = document.querySelector<HTMLButtonElement>("#start-camera-button");
   const startDetectorButton = document.querySelector<HTMLButtonElement>("#start-detector-button");
   const cornerOrderSelect = document.querySelector<HTMLSelectElement>("#corner-order-select");
+  const calibrationJsonInput = document.querySelector<HTMLTextAreaElement>("#calibration-json-input");
+  const applyCalibrationButton = document.querySelector<HTMLButtonElement>("#apply-calibration-button");
+  const clearCalibrationButton = document.querySelector<HTMLButtonElement>("#clear-calibration-button");
+  const calibrationStatusElement = document.querySelector<HTMLElement>("#calibration-status");
   const appStatusElement = document.querySelector<HTMLElement>("#app-status");
   const cameraStatusElement = document.querySelector<HTMLElement>("#camera-status");
   const resolutionStatusElement = document.querySelector<HTMLElement>("#resolution-status");
@@ -72,6 +92,10 @@ function readDomElements(): AppDomElements {
     startCameraButton === null ||
     startDetectorButton === null ||
     cornerOrderSelect === null ||
+    calibrationJsonInput === null ||
+    applyCalibrationButton === null ||
+    clearCalibrationButton === null ||
+    calibrationStatusElement === null ||
     appStatusElement === null ||
     cameraStatusElement === null ||
     resolutionStatusElement === null ||
@@ -89,6 +113,10 @@ function readDomElements(): AppDomElements {
     startCameraButton,
     startDetectorButton,
     cornerOrderSelect,
+    calibrationJsonInput,
+    applyCalibrationButton,
+    clearCalibrationButton,
+    calibrationStatusElement,
     appStatusElement,
     cameraStatusElement,
     resolutionStatusElement,
@@ -102,17 +130,22 @@ function readDomElements(): AppDomElements {
 }
 
 function createInitialRuntimeState(): AppRuntimeState {
+  const resolvedIntrinsics = resolveReferenceCameraIntrinsics();
+
   return {
     lifecycleState: "idle",
     mediaStream: null,
     detector: null,
     scaledCameraIntrinsics: null,
     resolutionSnapshot: null,
-    intrinsicsArePlaceholder: true,
+    intrinsicsSource: resolvedIntrinsics.intrinsicsSource,
+    distortionCoefficients: resolvedIntrinsics.distortionCoefficients,
     detectedMarkers: [],
     latestPoseResult: null,
+    trackedPose: null,
     animationFrameIdentifier: null,
     isProcessingTrackingFrame: false,
+    poseTracker: new PoseTracker(),
   };
 }
 
@@ -124,19 +157,24 @@ function readSelectedCornerOrder(cornerOrderSelect: HTMLSelectElement): CornerOr
     selectedValue === "clockwiseRotate90" ||
     selectedValue === "clockwiseRotate180" ||
     selectedValue === "clockwiseRotate270" ||
-    selectedValue === "reverse"
+    selectedValue === "reverse" ||
+    selectedValue === "reversedCanonical"
   ) {
     return selectedValue;
   }
 
-  return "canonical";
+  return "reversedCanonical";
 }
 
 function formatDiagnostics(state: AppRuntimeState): string {
+  const trackerSnapshot = state.poseTracker.getSnapshot();
   const lines = [
     `lifecycle: ${state.lifecycleState}`,
     `cameraLabel: ${state.mediaStream?.getVideoTracks()[0]?.label ?? "none"}`,
-    `intrinsicsArePlaceholder: ${state.intrinsicsArePlaceholder}`,
+    `intrinsicsSource: ${state.intrinsicsSource}`,
+    `distortionCoeffCount: ${state.distortionCoefficients.length}`,
+    `trackerState: ${trackerSnapshot.trackerState}`,
+    `coastFrameCount: ${trackerSnapshot.coastFrameCount}`,
     `detectedMarkerCount: ${state.detectedMarkers.length}`,
   ];
 
@@ -165,11 +203,28 @@ function formatDiagnostics(state: AppRuntimeState): string {
     if (state.latestPoseResult.success) {
       lines.push(
         `poseSuccess: true`,
+        `poseMode: ${state.latestPoseResult.poseMode}`,
+        `visibleFaceCount: ${state.latestPoseResult.visibleFaceCount}`,
+        `detectedMarkerIds: ${state.latestPoseResult.detectedMarkerIds.join(",")}`,
         `correspondenceCount: ${state.latestPoseResult.correspondenceCount}`,
         `finalReprojectionPx: ${state.latestPoseResult.finalMeanReprojectionErrorPx.toExponential(3)}`,
         `confidence: ${state.latestPoseResult.confidence.toFixed(4)}`,
         `numInliers: ${state.latestPoseResult.numInliers}`,
       );
+
+      if (state.latestPoseResult.planarCandidateCount !== undefined) {
+        lines.push(`planarCandidateCount: ${state.latestPoseResult.planarCandidateCount}`);
+      }
+
+      if (state.latestPoseResult.planarAmbiguityScore !== undefined) {
+        lines.push(
+          `planarAmbiguityScore: ${state.latestPoseResult.planarAmbiguityScore.toExponential(3)}`,
+        );
+      }
+
+      if (state.latestPoseResult.rejectedMarkerIds.length > 0) {
+        lines.push(`rejectedMarkerIds: ${state.latestPoseResult.rejectedMarkerIds.join(",")}`);
+      }
     } else {
       lines.push(
         `poseSuccess: false`,
@@ -197,6 +252,7 @@ function updateUi(
   domElements.poseStatusElement.textContent = poseMessage;
   domElements.diagnosticsTextElement.textContent = formatDiagnostics(state);
   domElements.startDetectorButton.disabled = state.lifecycleState !== "resolutionReady";
+  domElements.calibrationStatusElement.textContent = `calibration: ${state.intrinsicsSource}`;
 }
 
 async function handleStartCamera(
@@ -204,6 +260,7 @@ async function handleStartCamera(
   state: AppRuntimeState,
 ): Promise<void> {
   state.lifecycleState = "startingCamera";
+  state.poseTracker.reset();
   updateUi(domElements, state, "starting", "pending", "not started", "not estimated");
 
   const startupResult = await startCamera({
@@ -226,7 +283,6 @@ async function handleStartCamera(
 
   state.mediaStream = startupResult.mediaStream;
   state.lifecycleState = "cameraReady";
-  domElements.videoElement.hidden = false;
   synchronizeOverlayCanvasSize(domElements.captureCanvas, domElements.overlayCanvas);
 
   const frameCapture = captureVideoFrameToGrayscale(
@@ -246,7 +302,7 @@ async function handleStartCamera(
     captureCanvas: domElements.captureCanvas,
     overlayCanvas: domElements.overlayCanvas,
     grayscaleBufferLength: frameCapture.grayscaleBuffer.length,
-    referenceCameraIntrinsics: createPlaceholderReferenceCameraIntrinsics(),
+    referenceCameraIntrinsics: resolveReferenceCameraIntrinsics().referenceCameraIntrinsics,
   });
 
   if (!resolutionResult.success) {
@@ -265,9 +321,14 @@ async function handleStartCamera(
   state.lifecycleState = "resolutionReady";
   state.scaledCameraIntrinsics = resolutionResult.scaledCameraIntrinsics;
   state.resolutionSnapshot = resolutionResult.snapshot;
-  state.intrinsicsArePlaceholder = resolutionResult.intrinsicsArePlaceholder;
+  state.intrinsicsSource = resolutionResult.intrinsicsArePlaceholder
+    ? "placeholder"
+    : "calibrated";
 
-  const aprilCubeConfig = buildAprilCubeConfigFromLayoutJson(EXAMPLE_APRILCUBE_LAYOUT_JSON);
+  const aprilCubeConfig = buildAprilCubeConfigFromLayoutJson(
+    EXAMPLE_APRILCUBE_LAYOUT_JSON,
+    "reversedCanonical",
+  );
 
   drawOverlay({
     overlayCanvas: domElements.overlayCanvas,
@@ -276,6 +337,7 @@ async function handleStartCamera(
     pose: null,
     cubeSizeMeters: aprilCubeConfig.cubeSize,
     cameraIntrinsics: resolutionResult.scaledCameraIntrinsics,
+    distortionCoefficients: state.distortionCoefficients,
   });
 
   updateUi(
@@ -284,7 +346,7 @@ async function handleStartCamera(
     `cameraReady ${startupResult.videoWidth}x${startupResult.videoHeight}`,
     "resolutionReady",
     "not started",
-    state.intrinsicsArePlaceholder ? "approximate intrinsics" : "ready",
+    state.intrinsicsSource === "placeholder" ? "approximate intrinsics" : "calibrated intrinsics",
   );
 }
 
@@ -338,31 +400,78 @@ async function runTrackingFrame(
     readSelectedCornerOrder(domElements.cornerOrderSelect),
   );
 
+  if (state.detectedMarkers.length === 0) {
+    const missedFrameUpdate = state.poseTracker.updateFromMissedFrame();
+    state.trackedPose = missedFrameUpdate.trackedPose;
+    state.latestPoseResult = null;
+
+    drawOverlay({
+      overlayCanvas: domElements.overlayCanvas,
+      captureCanvas: domElements.captureCanvas,
+      detectedMarkers: [],
+      pose: missedFrameUpdate.trackedPose,
+      cubeSizeMeters: aprilCubeConfig.cubeSize,
+      cameraIntrinsics: state.scaledCameraIntrinsics,
+      distortionCoefficients: state.distortionCoefficients,
+    });
+
+    updateUi(
+      domElements,
+      state,
+      domElements.cameraStatusElement.textContent ?? "cameraReady",
+      "resolutionReady",
+      "detectorReady",
+      missedFrameUpdate.trackerState,
+    );
+    return;
+  }
+
+  const poseEstimationMarkers = undistortDetectedMarkers(
+    state.detectedMarkers,
+    state.scaledCameraIntrinsics,
+    state.distortionCoefficients,
+  );
+
   state.latestPoseResult = estimateAprilCubePose(
     {
-      markers: state.detectedMarkers,
+      markers: poseEstimationMarkers,
       config: aprilCubeConfig,
       cameraIntrinsics: state.scaledCameraIntrinsics,
     },
-    { enableRansac: true },
+    {
+      enableRansac: true,
+      previousPose: state.trackedPose ?? undefined,
+    },
   );
 
-  const pose =
-    state.latestPoseResult.success === true ? state.latestPoseResult.pose : null;
+  let overlayPose: Pose | null = null;
+  let poseMessage = "failed";
+
+  if (state.latestPoseResult.success) {
+    const trackerUpdate = state.poseTracker.updateFromMeasurement({
+      pose: state.latestPoseResult.pose,
+      finalMeanReprojectionErrorPx: state.latestPoseResult.finalMeanReprojectionErrorPx,
+      detectedMarkerCount: state.detectedMarkers.length,
+    });
+    state.trackedPose = trackerUpdate.trackedPose;
+    overlayPose = trackerUpdate.trackedPose;
+    poseMessage = `${state.latestPoseResult.poseMode} reproj=${state.latestPoseResult.finalMeanReprojectionErrorPx.toExponential(3)}`;
+  } else {
+    const missedFrameUpdate = state.poseTracker.updateFromMissedFrame();
+    state.trackedPose = missedFrameUpdate.trackedPose;
+    overlayPose = missedFrameUpdate.trackedPose;
+    poseMessage = `${state.latestPoseResult.stage}:${state.latestPoseResult.reason}`;
+  }
 
   drawOverlay({
     overlayCanvas: domElements.overlayCanvas,
     captureCanvas: domElements.captureCanvas,
     detectedMarkers: state.detectedMarkers,
-    pose,
+    pose: overlayPose,
     cubeSizeMeters: aprilCubeConfig.cubeSize,
     cameraIntrinsics: state.scaledCameraIntrinsics,
+    distortionCoefficients: state.distortionCoefficients,
   });
-
-  const poseMessage =
-    state.latestPoseResult.success === true
-      ? `success reproj=${state.latestPoseResult.finalMeanReprojectionErrorPx.toExponential(3)}`
-      : `${state.latestPoseResult.stage}:${state.latestPoseResult.reason}`;
 
   updateUi(
     domElements,
@@ -440,6 +549,32 @@ async function handleStartDetector(
   startTrackingLoop(domElements, state);
 }
 
+function handleApplyCalibration(domElements: AppDomElements, state: AppRuntimeState): void {
+  const parseResult = parseCalibrationJson(domElements.calibrationJsonInput.value);
+
+  if (!parseResult.success) {
+    domElements.calibrationStatusElement.textContent =
+      `calibration error: ${parseResult.reason} (${parseResult.detail})`;
+    return;
+  }
+
+  persistCalibrationJson(domElements.calibrationJsonInput.value.trim());
+  state.intrinsicsSource = "calibrated";
+  state.distortionCoefficients = parseResult.distortionCoefficients;
+  domElements.calibrationStatusElement.textContent =
+    "calibration: saved (restart camera to apply)";
+}
+
+function handleClearCalibration(domElements: AppDomElements, state: AppRuntimeState): void {
+  clearPersistedCalibration();
+  domElements.calibrationJsonInput.value = "";
+  const resolvedIntrinsics = resolveReferenceCameraIntrinsics();
+  state.intrinsicsSource = resolvedIntrinsics.intrinsicsSource;
+  state.distortionCoefficients = resolvedIntrinsics.distortionCoefficients;
+  domElements.calibrationStatusElement.textContent =
+    "calibration: cleared (restart camera to apply)";
+}
+
 function bindApplication(): void {
   const domElements = readDomElements();
   const state = createInitialRuntimeState();
@@ -458,6 +593,14 @@ function bindApplication(): void {
     }
 
     void handleStartDetector(domElements, state);
+  });
+
+  domElements.applyCalibrationButton.addEventListener("click", () => {
+    handleApplyCalibration(domElements, state);
+  });
+
+  domElements.clearCalibrationButton.addEventListener("click", () => {
+    handleClearCalibration(domElements, state);
   });
 
   window.addEventListener("pagehide", () => {

@@ -1,35 +1,17 @@
 /**
- * Estimates AprilCube pose by composing correspondences with estimatePose.
+ * Estimates AprilCube pose with multi-face EPnP, planar single-face, and outlier re-solve.
  */
-import { estimatePose } from "../pnp/estimate-pose.js";
+import { areObjectPointsCoplanar } from "../pnp/coplanarity.js";
+import { estimatePlanarPose } from "../pnp/planar/estimate-planar-pose.js";
+import { buildPlanarAprilCubePoseSuccess } from "./aprilcube-pose-success.js";
 import { buildAprilCubeCorrespondences } from "./build-correspondences.js";
+import { estimateMultiFaceAprilCubePose } from "./estimate-aprilcube-pose-resolve.js";
+import { selectCameraFacingPlanarResult } from "./pose-facing-camera.js";
 import type {
-  AprilCubeCornerDiagnostic,
   EstimateAprilCubePoseInput,
   EstimateAprilCubePoseOptions,
   EstimateAprilCubePoseResult,
 } from "./types.js";
-
-function buildOutlierMarkerDiagnostics(
-  outlierIndices: ReadonlyArray<number>,
-  correspondenceMarkerIds: ReadonlyArray<number>,
-  correspondenceCornerIndices: ReadonlyArray<number>,
-): AprilCubeCornerDiagnostic[] {
-  return outlierIndices.map((correspondenceIndex) => {
-    const markerId = correspondenceMarkerIds[correspondenceIndex];
-    const cornerIndex = correspondenceCornerIndices[correspondenceIndex];
-
-    if (markerId === undefined || cornerIndex === undefined) {
-      throw new RangeError("Outlier correspondence metadata is missing.");
-    }
-
-    return {
-      markerId,
-      cornerIndex,
-      correspondenceIndex,
-    };
-  });
-}
 
 /** Estimates cameraFromObject pose from detected AprilCube marker corners. */
 export function estimateAprilCubePose(
@@ -49,33 +31,72 @@ export function estimateAprilCubePose(
     };
   }
 
-  const poseResult = estimatePose(
-    {
-      imagePoints: correspondenceResult.imagePoints,
-      objectPoints: correspondenceResult.objectPoints,
-      cameraIntrinsics: input.cameraIntrinsics,
-    },
-    options,
-  );
+  const {
+    imagePoints,
+    objectPoints,
+    markerIds,
+    cornerIndices,
+  } = correspondenceResult;
 
-  if (!poseResult.success) {
-    return {
-      success: false,
-      stage: "poseEstimation",
-      reason: poseResult.reason,
-    };
+  const objectPointsAreCoplanar = areObjectPointsCoplanar(objectPoints);
+
+  if (objectPointsAreCoplanar) {
+    const planarResult = estimatePlanarPose(
+      {
+        imagePoints,
+        objectPoints,
+        cameraIntrinsics: input.cameraIntrinsics,
+      },
+      {
+        previousPose: options.previousPose,
+        maxRefinementIterations: options.maxRefinementIterations,
+      },
+    );
+
+    if (!planarResult.success) {
+      return {
+        success: false,
+        stage: "poseEstimation",
+        reason:
+          planarResult.reason === "planarAmbiguous"
+            ? "planarAmbiguous"
+            : planarResult.reason,
+      };
+    }
+
+    const cameraFacingPlanarResult = selectCameraFacingPlanarResult(
+      planarResult,
+      input,
+      markerIds,
+    );
+
+    if (cameraFacingPlanarResult === null) {
+      return {
+        success: false,
+        stage: "poseEstimation",
+        reason: "planarAmbiguous",
+      };
+    }
+
+    return buildPlanarAprilCubePoseSuccess(
+      cameraFacingPlanarResult,
+      input,
+      markerIds,
+      cornerIndices,
+      imagePoints,
+      objectPoints,
+      options,
+    );
   }
 
-  return {
-    ...poseResult,
-    detectedMarkerCount: input.markers.length,
-    correspondenceCount: correspondenceResult.imagePoints.length,
-    correspondenceMarkerIds: correspondenceResult.markerIds,
-    correspondenceCornerIndices: correspondenceResult.cornerIndices,
-    outlierMarkerDiagnostics: buildOutlierMarkerDiagnostics(
-      poseResult.outlierIndices,
-      correspondenceResult.markerIds,
-      correspondenceResult.cornerIndices,
-    ),
-  };
+  return estimateMultiFaceAprilCubePose(
+    input,
+    imagePoints,
+    objectPoints,
+    markerIds,
+    cornerIndices,
+    options,
+    "multiFace",
+    estimateAprilCubePose,
+  );
 }

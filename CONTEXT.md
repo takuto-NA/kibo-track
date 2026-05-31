@@ -9,8 +9,24 @@ Kibo-track は、検出済み 2D 点と既知 3D 点から cameraFromObject pose
 _Avoid_: OpenCV.js 代替, detector, tracker-only library
 
 **ImagePoint2D**:
-画像上の 2D 点。pixel 座標 `[u, v]`。左上原点、+u 右、+v 下。
-_Avoid_: normalized point, undistorted point (unless explicitly stated)
+画像上の 2D 点。pixel 座標 `[u, v]`。左上原点、+u 右、+v 下。core に渡す時点では PnP / 再投影に使う座標系の点。検出器 raw 出力との変換（corner 並べ替え・レンズ補正）は adapter / example 責務。
+_Avoid_: normalized point（明示しない限り）
+
+**CornerOrder**:
+検出器が返す 4 corner を OpenCV / AprilCube canonical `[TL, TR, BR, BL]` に合わせる adapter 側の並べ替え。検出器ごとに異なりうる。
+_Avoid_: detector corner order（検出器固有の別名として混同）
+
+**PlanarPoseAmbiguity**:
+共面 4 点から pose を求めると、再投影誤差が同等の複数解（表/裏）が出うる状態。
+_Avoid_: mirror pose（文脈なしでは曖昧）
+
+**PoseFacingCamera**:
+cuboid の可視面法線がカメラを向いているかの幾何制約。低 reprojection でも裏解を弾くために使う。
+_Avoid_: chirality（数学用語のみで説明しない）
+
+**DetectedMarkerCorners**:
+検出器が返す `{ id, corners }`。corner 順序は検出器 native。AprilCube adapter に渡す前に CornerOrder で正規化しうる。
+_Avoid_: ImagePoint2D[]（ID と corner の対応が失われる）
 
 **ObjectPoint3D**:
 物体座標系上の 3D 点 `[x, y, z]`。core は単位を解釈しない。

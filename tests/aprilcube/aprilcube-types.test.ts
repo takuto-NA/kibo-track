@@ -49,9 +49,12 @@ describe("AprilCube adapter result model", () => {
     expect(result.correspondenceCount).toBe(8);
     expect(result.correspondenceMarkerIds).toHaveLength(8);
     expect(result.correspondenceCornerIndices).toHaveLength(8);
+    expect(result.poseMode).toBe("multiFace");
+    expect(result.visibleFaceCount).toBe(2);
+    expect(result.markerReprojectionDiagnostics.length).toBeGreaterThan(0);
   });
 
-  it("returns poseEstimation degenerateConfiguration for unsupported single-face pose", () => {
+  it("returns singleFacePlanar for single-face pose without prior when resolved", () => {
     const result = estimateAprilCubePose(
       {
         markers: createSingleFaceAprilCubeMarkers(),
@@ -61,13 +64,12 @@ describe("AprilCube adapter result model", () => {
       { enableRansac: false },
     );
 
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
 
-    if (result.success) {
+    if (!result.success) {
       return;
     }
 
-    expect(result.stage).toBe("poseEstimation");
-    expect(result.reason).toBe("degenerateConfiguration");
+    expect(result.poseMode).toBe("singleFacePlanar");
   });
 });
