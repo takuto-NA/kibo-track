@@ -8,6 +8,9 @@ const FAKE_CAMERA_LAUNCH_ARGS = [
   "--use-fake-ui-for-media-stream",
 ];
 
+const browserTestsEnabled = Boolean(process.env.RUN_BROWSER_TESTS);
+const realCameraTestsEnabled = Boolean(process.env.RUN_REAL_CAMERA);
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -21,25 +24,29 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    {
-      name: "chromium-fake-camera",
-      testMatch: /camera-startup\.spec\.ts/,
-      use: {
-        ...devices["Desktop Chrome"],
-        launchOptions: {
-          args: FAKE_CAMERA_LAUNCH_ARGS,
-        },
-      },
-    },
-    {
-      name: "chromium-static-image",
-      testMatch: /static-aprilcube-image\.spec\.ts/,
-      timeout: 600_000,
-      use: {
-        ...devices["Desktop Chrome"],
-      },
-    },
-    ...(process.env.RUN_REAL_CAMERA
+    ...(browserTestsEnabled
+      ? [
+          {
+            name: "chromium-fake-camera",
+            testMatch: /camera-startup\.spec\.ts/,
+            use: {
+              ...devices["Desktop Chrome"],
+              launchOptions: {
+                args: FAKE_CAMERA_LAUNCH_ARGS,
+              },
+            },
+          },
+          {
+            name: "chromium-static-image",
+            testMatch: /static-aprilcube-image\.spec\.ts/,
+            timeout: 600_000,
+            use: {
+              ...devices["Desktop Chrome"],
+            },
+          },
+        ]
+      : []),
+    ...(realCameraTestsEnabled
       ? [
           {
             name: "chromium-real-camera",
@@ -52,10 +59,12 @@ export default defineConfig({
         ]
       : []),
   ],
-  webServer: {
-    command: "npm run build && npm run preview -- --host 127.0.0.1 --port 4173",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: browserTestsEnabled || realCameraTestsEnabled
+    ? {
+        command: "npm run build && npm run preview -- --host 127.0.0.1 --port 4173",
+        url: "http://127.0.0.1:4173",
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      }
+    : undefined,
 });

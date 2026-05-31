@@ -1,12 +1,11 @@
 /**
  * Multi-face outlier re-solve and single-marker planar fallback for AprilCube pose.
  */
-import { areObjectPointsCoplanar } from "../pnp/coplanarity.js";
 import type { ImagePoint2D, ObjectPoint3D } from "../core/types.js";
 import { estimatePose } from "../pnp/estimate-pose.js";
 import { buildAprilCubeCorrespondences } from "./build-correspondences.js";
+import { routeAprilCubePoseFromCorrespondences } from "./aprilcube-pose-routing.js";
 import { buildAprilCubePoseSuccess } from "./aprilcube-pose-success.js";
-import { estimateCoplanarAprilCubePose } from "./coplanar-aprilcube-pose.js";
 import {
   computeAprilCubeMarkerReprojectionDiagnostics,
   selectOutlierMarkerIds,
@@ -61,39 +60,17 @@ function resolveAprilCubePoseAfterOutlierRemoval(
     return null;
   }
 
-  const filteredInput: EstimateAprilCubePoseInput = {
-    markers: filteredMarkers,
-    config: input.config,
-    cameraIntrinsics: input.cameraIntrinsics,
-  };
-  const resolveOptions: EstimateAprilCubePoseOptions = {
-    ...options,
-    skipOutlierResolve: true,
-  };
-
-  if (areObjectPointsCoplanar(filteredCorrespondenceResult.objectPoints)) {
-    return estimateCoplanarAprilCubePose(
-      filteredInput,
-      filteredCorrespondenceResult,
-      resolveOptions,
-    );
-  }
-
-  const {
-    imagePoints,
-    objectPoints,
-    markerIds,
-    cornerIndices,
-  } = filteredCorrespondenceResult;
-
-  return estimateMultiFaceAprilCubePose(
-    filteredInput,
-    imagePoints,
-    objectPoints,
-    markerIds,
-    cornerIndices,
-    resolveOptions,
-    "multiFace",
+  return routeAprilCubePoseFromCorrespondences(
+    {
+      markers: filteredMarkers,
+      config: input.config,
+      cameraIntrinsics: input.cameraIntrinsics,
+    },
+    filteredCorrespondenceResult,
+    {
+      ...options,
+      skipOutlierResolve: true,
+    },
   );
 }
 

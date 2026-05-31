@@ -107,12 +107,16 @@ Unit tests:
 npm test
 ```
 
-Fake-camera browser smoke test:
+Fake-camera browser smoke test (opens the page only; camera starts when you click **Start Camera** in the test):
 
 ```bash
 npx playwright install chromium
 npm run test:browser
 ```
+
+`npm run test:browser` sets `RUN_BROWSER_TESTS=1`. A plain `playwright test` without that variable runs no browser projects, so the camera is not touched accidentally.
+
+Optional **Probe frame rates** button on the demo page opens a brief camera session before **Start Camera** if you want to filter the FPS list first. Page load and resolution changes no longer probe the camera automatically.
 
 Optional local real-camera gate:
 

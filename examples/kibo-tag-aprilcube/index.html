@@ -23,12 +23,15 @@
         </label>
         <label>
           Camera FPS
-          <select id="camera-frame-rate-select" data-testid="camera-frame-rate-select" disabled>
+          <select id="camera-frame-rate-select" data-testid="camera-frame-rate-select">
             <option value="deviceDefault" selected>Device default</option>
           </select>
         </label>
+        <button id="probe-frame-rates-button" type="button" data-testid="probe-frame-rates-button">
+          Probe frame rates
+        </button>
         <p id="camera-frame-rate-hint" data-testid="camera-frame-rate-hint">
-          Select a resolution to probe available frame rates…
+          Common frame rates are listed. Start camera to read device limits, or probe first.
         </p>
         <label>
           Corner order

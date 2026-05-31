@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:browser": "playwright test",
-    "test:camera:real": "playwright test e2e/real-camera.spec.ts --headed"
+    "test:browser": "cross-env RUN_BROWSER_TESTS=1 playwright test",
+    "test:camera:real": "cross-env RUN_REAL_CAMERA=1 RUN_BROWSER_TESTS=1 playwright test e2e/real-camera.spec.ts --headed"
   },
   "dependencies": {
     "comlink": "^4.4.2",
@@ -21,6 +21,7 @@
   "devDependencies": {
     "@playwright/test": "^1.52.0",
     "@types/node": "^22.15.21",
+    "cross-env": "^7.0.3",
     "happy-dom": "^17.4.4",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",

@@ -18,6 +18,8 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
+    "test:example": "npm test --prefix examples/kibo-tag-aprilcube",
+    "test:all": "npm test && npm run test:example",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },

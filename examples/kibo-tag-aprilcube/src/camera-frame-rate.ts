@@ -152,6 +152,16 @@ export function readSelectedCameraFrameRateSelection(
   return "deviceDefault";
 }
 
+/** Populates the fps select with device-default plus all common candidates (no camera probe). */
+export function renderDefaultCameraFrameRateSelectOptions(
+  cameraFrameRateSelect: HTMLSelectElement,
+): void {
+  renderCameraFrameRateSelectOptions(
+    cameraFrameRateSelect,
+    [...CAMERA_FRAME_RATE_CANDIDATE_VALUES],
+  );
+}
+
 /** Populates the fps select with device-default plus probed supported candidates. */
 export function renderCameraFrameRateSelectOptions(
   cameraFrameRateSelect: HTMLSelectElement,
@@ -213,6 +223,43 @@ function formatFrameRateCapabilityRangeMessage(
   }
 
   return `${capabilityMinFrameRate ?? "?"}–${capabilityMaxFrameRate ?? "?"} fps`;
+}
+
+/** Reads frame-rate capability from an already-open camera stream (no extra getUserMedia). */
+export function buildFrameRateProbeResultFromMediaStream(
+  mediaStream: MediaStream,
+  resolution: CameraResolutionPixels,
+): CameraFrameRateProbeResult {
+  const videoTrack = mediaStream.getVideoTracks()[0];
+
+  if (videoTrack === undefined) {
+    return {
+      success: false,
+      capabilityMinFrameRate: null,
+      capabilityMaxFrameRate: null,
+      supportedCandidateFrameRates: [],
+      detail: "Could not read frame rates: no video track on the active stream.",
+    };
+  }
+
+  const [capabilityMinFrameRate, capabilityMaxFrameRate] =
+    readVideoTrackFrameRateCapabilities(videoTrack);
+  const supportedCandidateFrameRates = filterSupportedCameraFrameRateCandidates(
+    capabilityMinFrameRate,
+    capabilityMaxFrameRate,
+  );
+  const probeResult: CameraFrameRateProbeResult = {
+    success: true,
+    capabilityMinFrameRate,
+    capabilityMaxFrameRate,
+    supportedCandidateFrameRates,
+    detail: "",
+  };
+
+  return {
+    ...probeResult,
+    detail: formatCameraFrameRateProbeMessage(probeResult, resolution),
+  };
 }
 
 /**
@@ -278,31 +325,11 @@ export async function probeCameraFrameRateOptions(
     };
   }
 
-  const [capabilityMinFrameRate, capabilityMaxFrameRate] =
-    readVideoTrackFrameRateCapabilities(videoTrack);
-  const supportedCandidateFrameRates = filterSupportedCameraFrameRateCandidates(
-    capabilityMinFrameRate,
-    capabilityMaxFrameRate,
-  );
+  const probeResult = buildFrameRateProbeResultFromMediaStream(mediaStream, resolution);
 
   stopMediaStreamTracks(mediaStream);
 
-  return {
-    success: true,
-    capabilityMinFrameRate,
-    capabilityMaxFrameRate,
-    supportedCandidateFrameRates,
-    detail: formatCameraFrameRateProbeMessage(
-      {
-        success: true,
-        capabilityMinFrameRate,
-        capabilityMaxFrameRate,
-        supportedCandidateFrameRates,
-        detail: "",
-      },
-      resolution,
-    ),
-  };
+  return probeResult;
 }
 
 /** Returns the negotiated frame rate from an active video track, if reported. */

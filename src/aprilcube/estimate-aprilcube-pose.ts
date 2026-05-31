@@ -1,10 +1,8 @@
 /**
- * Estimates AprilCube pose with multi-face EPnP, planar single-face, and outlier re-solve.
+ * Public AprilCube pose estimation entrypoint.
  */
-import { areObjectPointsCoplanar } from "../pnp/coplanarity.js";
 import { buildAprilCubeCorrespondences } from "./build-correspondences.js";
-import { estimateCoplanarAprilCubePose } from "./coplanar-aprilcube-pose.js";
-import { estimateMultiFaceAprilCubePose } from "./estimate-aprilcube-pose-resolve.js";
+import { routeAprilCubePoseFromCorrespondences } from "./aprilcube-pose-routing.js";
 import type {
   AprilCubeCorrespondencesSuccess,
   EstimateAprilCubePoseInput,
@@ -18,26 +16,7 @@ export function estimateAprilCubePoseFromCorrespondences(
   correspondences: AprilCubeCorrespondencesSuccess,
   options: EstimateAprilCubePoseOptions = {},
 ): EstimateAprilCubePoseResult {
-  const {
-    imagePoints,
-    objectPoints,
-    markerIds,
-    cornerIndices,
-  } = correspondences;
-
-  if (areObjectPointsCoplanar(objectPoints)) {
-    return estimateCoplanarAprilCubePose(input, correspondences, options);
-  }
-
-  return estimateMultiFaceAprilCubePose(
-    input,
-    imagePoints,
-    objectPoints,
-    markerIds,
-    cornerIndices,
-    options,
-    "multiFace",
-  );
+  return routeAprilCubePoseFromCorrespondences(input, correspondences, options);
 }
 
 /** Estimates cameraFromObject pose from detected AprilCube marker corners. */

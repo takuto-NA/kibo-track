@@ -2,6 +2,10 @@
  * Static AprilCube image verification: detect markers, estimate pose, draw wireframe overlay.
  */
 import { estimateAprilCubePose } from "kibo-track";
+import type {
+  DetectedMarkerCorners,
+  EstimateAprilCubePoseSuccess,
+} from "kibo-track";
 import {
   buildAprilCubeConfigFromLayoutJson,
   EXAMPLE_APRILCUBE_LAYOUT_JSON,
@@ -16,7 +20,7 @@ import {
   initializeKiboTagDetector,
 } from "./kibo-tag-detector.js";
 import { drawOverlay } from "./overlay.js";
-import type { CornerOrderSelection } from "./types.js";
+import { readCornerOrderFromQueryValue } from "./read-corner-order-selection.js";
 
 export interface StaticImageVerificationResult {
   readonly status: "complete" | "failed";
@@ -31,9 +35,9 @@ export interface StaticImageVerificationResult {
   readonly visibleFaceCount: number | null;
   readonly failureReason: string | null;
   readonly rejectedMarkerIds?: readonly number[];
-  readonly detectedMarkers?: readonly unknown[];
-  readonly markerReprojectionDiagnostics?: readonly unknown[];
-  readonly poseTranslation?: readonly number[];
+  readonly detectedMarkers?: readonly DetectedMarkerCorners[];
+  readonly markerReprojectionDiagnostics?: EstimateAprilCubePoseSuccess["markerReprojectionDiagnostics"];
+  readonly poseTranslation?: readonly [number, number, number];
 }
 
 declare global {
@@ -50,22 +54,6 @@ function readImageUrlFromQueryString(): string {
   }
 
   return imageUrl;
-}
-
-function readCornerOrderFromQueryString(): CornerOrderSelection {
-  const cornerOrder = new URLSearchParams(window.location.search).get("cornerOrder");
-
-  if (
-    cornerOrder === "clockwiseRotate90" ||
-    cornerOrder === "clockwiseRotate180" ||
-    cornerOrder === "clockwiseRotate270" ||
-    cornerOrder === "reverse" ||
-    cornerOrder === "reversedCanonical"
-  ) {
-    return cornerOrder;
-  }
-
-  return "reversedCanonical";
 }
 
 async function readCalibrationFromQueryString(
@@ -206,7 +194,7 @@ async function runStaticImageVerification(): Promise<void> {
   const distortionCoefficients = calibratedCamera?.distortionCoefficients ?? [];
   const aprilCubeConfig = buildAprilCubeConfigFromLayoutJson(
     EXAMPLE_APRILCUBE_LAYOUT_JSON,
-    readCornerOrderFromQueryString(),
+    readCornerOrderFromQueryValue(queryParameters.get("cornerOrder")),
   );
   const poseEstimationMarkers = undistortDetectedMarkers(
     detectedMarkers,

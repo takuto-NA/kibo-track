@@ -11,12 +11,14 @@ import {
 import {
   buildCameraFrameRateConstraint,
   buildCameraVideoConstraints,
+  buildFrameRateProbeResultFromMediaStream,
   filterSupportedCameraFrameRateCandidates,
   formatCameraFrameRateProbeMessage,
   isRequestedFrameRateUnsupported,
   negotiateCameraFrameRate,
   readSelectedCameraFrameRateSelection,
   renderCameraFrameRateSelectOptions,
+  renderDefaultCameraFrameRateSelectOptions,
 } from "./camera-frame-rate.js";
 
 const REFERENCE_RESOLUTION = {
@@ -87,6 +89,42 @@ describe("camera frame-rate helpers", () => {
       48,
       CAMERA_FRAME_RATE_60_FPS,
     ]);
+  });
+
+  it("renders all common candidate options without a camera probe", () => {
+    const cameraFrameRateSelect = document.createElement("select");
+
+    renderDefaultCameraFrameRateSelectOptions(cameraFrameRateSelect);
+
+    expect(Array.from(cameraFrameRateSelect.options).map((option) => option.value)).toEqual([
+      "deviceDefault",
+      "15",
+      "24",
+      "30",
+      "48",
+      "60",
+    ]);
+  });
+
+  it("reads frame-rate capability from an active media stream without getUserMedia", () => {
+    const mediaStream = new MediaStream();
+    Object.defineProperty(mediaStream, "getVideoTracks", {
+      value: () => [
+        {
+          getCapabilities: () => ({ frameRate: { min: 1, max: CAMERA_FRAME_RATE_30_FPS } }),
+        },
+      ],
+    });
+
+    const probeResult = buildFrameRateProbeResultFromMediaStream(mediaStream, VGA_RESOLUTION);
+
+    expect(probeResult.success).toBe(true);
+    expect(probeResult.supportedCandidateFrameRates).toEqual([
+      15,
+      24,
+      CAMERA_FRAME_RATE_30_FPS,
+    ]);
+    expect(probeResult.detail).toContain("640×480");
   });
 
   it("renders only supported candidate options in the select", () => {

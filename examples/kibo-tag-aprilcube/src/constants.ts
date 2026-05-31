@@ -62,6 +62,10 @@ export const CAMERA_FRAME_RATE_CANDIDATE_VALUES = [
   CAMERA_FRAME_RATE_60_FPS,
 ] as const;
 
+/** Hint when frame-rate limits have not been probed and no camera stream is active. */
+export const CAMERA_FRAME_RATE_DEFAULT_HINT_MESSAGE =
+  "Common frame rates are listed. Start camera to read device limits, or use Probe frame rates first.";
+
 /** Cube wireframe edge color. */
 export const CUBE_WIREFRAME_STROKE_COLOR = "#00ff88";
 
