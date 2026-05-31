@@ -70,6 +70,8 @@ export interface AppRuntimeState {
   poseTracker: PoseTracker;
   overlayDisplayMode: OverlayDisplayMode;
   threeModelOverlaySession: ThreeModelOverlaySession | null;
+  threeModelOverlayLoadPromise: Promise<ThreeModelOverlaySession | null> | null;
+  threeModelOverlayLoadError: string | null;
   requestedCameraFacingModeSelection: CameraFacingModeSelection;
   actualCameraFacingMode: CameraFacingModeSelection | null;
   requestedCameraResolution: CameraResolutionPixels;
@@ -187,6 +189,8 @@ export function createInitialAppRuntimeState(): AppRuntimeState {
     poseTracker: new PoseTracker(),
     overlayDisplayMode: DEFAULT_OVERLAY_DISPLAY_MODE,
     threeModelOverlaySession: null,
+    threeModelOverlayLoadPromise: null,
+    threeModelOverlayLoadError: null,
     requestedCameraFacingModeSelection: DEFAULT_CAMERA_FACING_MODE_SELECTION,
     actualCameraFacingMode: null,
     requestedCameraResolution: {

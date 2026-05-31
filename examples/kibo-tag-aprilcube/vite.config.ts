@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import { defineConfig } from "vite";
+import { createServeRepositoryExamplesDataPlugin } from "./vite-plugin-serve-examples-data.js";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRootDirectory = path.resolve(currentDirectory, "../..");
@@ -19,7 +20,10 @@ export default defineConfig(({ mode }) => {
         "kibo-track": path.resolve(repositoryRootDirectory, "src/index.ts"),
       },
     },
-    plugins: isDemoLanMode ? [basicSsl()] : [],
+    plugins: [
+      createServeRepositoryExamplesDataPlugin(repositoryRootDirectory),
+      ...(isDemoLanMode ? [basicSsl()] : []),
+    ],
     build: {
       rollupOptions: {
         input: {

@@ -33,6 +33,8 @@ function formatDiagnostics(state: AppRuntimeState): string {
     `coastFrameCount: ${trackerSnapshot.coastFrameCount}`,
     `detectedMarkerCount: ${state.detectedMarkers.length}`,
     `overlayDisplayMode: ${state.overlayDisplayMode}`,
+    `threeModelOverlayLoaded: ${state.threeModelOverlaySession !== null}`,
+    `threeModelOverlayLoadError: ${state.threeModelOverlayLoadError ?? "none"}`,
     `requestedCameraFacingMode: ${state.requestedCameraFacingModeSelection}`,
     `actualCameraFacingMode: ${state.actualCameraFacingMode ?? "unknown"}`,
     `requestedCameraResolution: ${formatCameraResolutionLabel(state.requestedCameraResolution)}`,

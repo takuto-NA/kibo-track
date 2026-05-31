@@ -1,5 +1,5 @@
 /**
- * three.js WebGL model overlay: Utah teapot synced to tracked AprilCube pose.
+ * three.js WebGL model overlay synced to tracked AprilCube pose.
  */
 import {
   AmbientLight,
@@ -7,17 +7,23 @@ import {
   Color,
   DirectionalLight,
   Matrix4,
-  Mesh,
-  MeshStandardMaterial,
   Object3D,
+  PCFSoftShadowMap,
   PerspectiveCamera,
   Scene,
+  Vector3,
   WebGLRenderer,
 } from "three";
-import { TeapotGeometry } from "three/examples/jsm/geometries/TeapotGeometry.js";
 import type { CameraIntrinsics, Pose } from "kibo-track";
 import { shouldRenderThreeModelForPose } from "./overlay-display-mode.js";
 import { synchronizeOverlayCanvasSize } from "./resolution-gate.js";
+import { DEFAULT_THREE_OVERLAY_OBJ_URL } from "./three-model-asset-paths.js";
+import {
+  disposeObject3DResources,
+  enableShadowCastingOnModelMeshes,
+  loadNormalizedObjOverlayModel,
+} from "./three-model-load-obj.js";
+import { THREE_OVERLAY_MODEL_TO_CUBE_SIZE_RATIO } from "./three-model-normalization.js";
 import {
   buildOpenCvStyleProjectionMatrixColumnMajor,
   buildThreeJsObjectMatrixFromPose,
@@ -27,33 +33,54 @@ import {
 } from "./three-pose-projection.js";
 import type { OverlayDisplayMode } from "./types.js";
 
-/** Teapot max reference dimension (Y/Z body height-depth) relative to AprilCube edge length. */
-export const TEAPOT_MODEL_TO_CUBE_SIZE_RATIO = 2;
-
-/** Utah teapot tessellation segments for the built-in geometry. */
-const TEAPOT_GEOMETRY_TESSELLATION_SEGMENTS = 6;
-
-/** Teapot geometry size parameter before bounding-box normalization. */
-const TEAPOT_GEOMETRY_BASE_SIZE = 1;
-
 /** Axis helper length in meters for orientation debugging. */
 const THREE_OVERLAY_AXIS_HELPER_LENGTH_METERS = 0.02;
 
-/** Ambient light intensity for the teapot material. */
-const THREE_OVERLAY_AMBIENT_LIGHT_INTENSITY = 0.55;
+/** Ambient fill kept low so directional shadows remain visible. */
+const THREE_OVERLAY_AMBIENT_LIGHT_INTENSITY = 0.22;
 
-/** Directional light intensity for the teapot material. */
-const THREE_OVERLAY_DIRECTIONAL_LIGHT_INTENSITY = 0.85;
+/** Key light intensity for primary shading and shadow casting. */
+const THREE_OVERLAY_KEY_DIRECTIONAL_LIGHT_INTENSITY = 1.15;
 
-/** Base color for the built-in Utah teapot mesh. */
-const THREE_OVERLAY_TEAPOT_BASE_COLOR = 0x66a3ff;
+/** Soft fill light from the opposite side (no shadows). */
+const THREE_OVERLAY_FILL_DIRECTIONAL_LIGHT_INTENSITY = 0.32;
+
+/** Shadow map resolution in pixels (width and height). */
+const THREE_OVERLAY_SHADOW_MAP_SIZE_PIXELS = 1024;
+
+/** Shadow frustum half-extent multiplier relative to normalized model target size. */
+const THREE_OVERLAY_SHADOW_FRUSTUM_HALF_EXTENT_MULTIPLIER = 1.35;
+
+/** Extra margin so shadow frustum covers typical model depth when centered on the camera. */
+const THREE_OVERLAY_SHADOW_FRUSTUM_DEPTH_MARGIN_MULTIPLIER = 3;
+
+/** Shadow camera far-plane multiplier relative to frustum half-extent. */
+const THREE_OVERLAY_SHADOW_CAMERA_FAR_PLANE_MULTIPLIER = 4;
+
+/** Shadow bias to reduce shadow acne on curved OBJ surfaces. */
+const THREE_OVERLAY_SHADOW_BIAS = -0.0002;
+
+/** Shadow normal bias for high-curvature mesh self-shadowing. */
+const THREE_OVERLAY_SHADOW_NORMAL_BIAS = 0.025;
+
+/** Fixed key-light position in camera space (does not follow object pose). */
+const THREE_OVERLAY_KEY_LIGHT_CAMERA_SPACE_POSITION = new Vector3(0.35, 0.55, 0.75);
+
+/** Fixed key-light target in camera space (view axis anchor). */
+const THREE_OVERLAY_KEY_LIGHT_CAMERA_SPACE_TARGET = new Vector3(0, 0, -0.25);
+
+/** Fixed fill-light target in camera space (same view anchor as key light). */
+const THREE_OVERLAY_FILL_LIGHT_CAMERA_SPACE_TARGET = THREE_OVERLAY_KEY_LIGHT_CAMERA_SPACE_TARGET;
+
+/** Fixed fill-light position in camera space (no shadows). */
+const THREE_OVERLAY_FILL_LIGHT_CAMERA_SPACE_POSITION = new Vector3(-0.4, 0.15, 0.35);
 
 export interface ThreeModelOverlaySession {
   readonly renderer: WebGLRenderer;
   readonly scene: Scene;
   readonly camera: PerspectiveCamera;
   readonly modelRoot: Object3D;
-  readonly modelMesh: Mesh;
+  readonly modelObject: Object3D;
   readonly axisHelper: AxesHelper;
 }
 
@@ -63,108 +90,6 @@ export interface ThreeModelOverlayRenderInput {
   readonly cameraIntrinsics: CameraIntrinsics | null;
   readonly captureCanvas: HTMLCanvasElement;
   readonly cubeSizeMeters: number;
-}
-
-export interface BoundingBoxSize {
-  readonly sizeX: number;
-  readonly sizeY: number;
-  readonly sizeZ: number;
-}
-
-export interface NormalizedTeapotGeometryResult {
-  readonly geometry: TeapotGeometry;
-  readonly uniformScale: number;
-}
-
-/** Returns the largest edge length of an axis-aligned bounding box. */
-export function computeBoundingBoxMaxDimension(boundingBoxSize: BoundingBoxSize): number {
-  return Math.max(boundingBoxSize.sizeX, boundingBoxSize.sizeY, boundingBoxSize.sizeZ);
-}
-
-/** Computes the uniform scale that maps a model max dimension to a target max dimension. */
-export function computeUniformScaleForTargetMaxDimension(
-  currentMaxDimension: number,
-  targetMaxDimension: number,
-): number {
-  // Guard: zero-sized geometry cannot be normalized.
-  if (currentMaxDimension <= Number.EPSILON) {
-    throw new RangeError("Current max dimension must be positive for normalization.");
-  }
-
-  // Guard: target size must be positive.
-  if (targetMaxDimension <= Number.EPSILON) {
-    throw new RangeError("Target max dimension must be positive for normalization.");
-  }
-
-  return targetMaxDimension / currentMaxDimension;
-}
-
-/** Computes teapot normalization reference size (body height/depth, not spout-handle X span). */
-export function computeTeapotNormalizationReferenceDimension(
-  boundingBoxSize: BoundingBoxSize,
-): number {
-  return Math.max(boundingBoxSize.sizeY, boundingBoxSize.sizeZ);
-}
-
-/** Creates a centered teapot geometry and the uniform scale for the AprilCube target size. */
-export function createNormalizedTeapotGeometry(
-  cubeSizeMeters: number,
-): NormalizedTeapotGeometryResult {
-  const teapotGeometry = new TeapotGeometry(
-    TEAPOT_GEOMETRY_BASE_SIZE,
-    TEAPOT_GEOMETRY_TESSELLATION_SEGMENTS,
-  );
-  teapotGeometry.computeBoundingBox();
-
-  const boundingBox = teapotGeometry.boundingBox;
-
-  // Guard: teapot geometry must expose a bounding box for normalization.
-  if (boundingBox === null) {
-    teapotGeometry.dispose();
-    throw new RangeError("Teapot geometry bounding box is unavailable.");
-  }
-
-  const boundingBoxCenterX = (boundingBox.max.x + boundingBox.min.x) / 2;
-  const boundingBoxCenterY = (boundingBox.max.y + boundingBox.min.y) / 2;
-  const boundingBoxCenterZ = (boundingBox.max.z + boundingBox.min.z) / 2;
-  teapotGeometry.translate(
-    -boundingBoxCenterX,
-    -boundingBoxCenterY,
-    -boundingBoxCenterZ,
-  );
-  teapotGeometry.computeBoundingBox();
-
-  const centeredBoundingBox = teapotGeometry.boundingBox;
-
-  // Guard: centered teapot geometry must expose a bounding box for normalization.
-  if (centeredBoundingBox === null) {
-    teapotGeometry.dispose();
-    throw new RangeError("Centered teapot geometry bounding box is unavailable.");
-  }
-
-  const boundingBoxSize: BoundingBoxSize = {
-    sizeX: centeredBoundingBox.max.x - centeredBoundingBox.min.x,
-    sizeY: centeredBoundingBox.max.y - centeredBoundingBox.min.y,
-    sizeZ: centeredBoundingBox.max.z - centeredBoundingBox.min.z,
-  };
-  const targetReferenceDimension = cubeSizeMeters * TEAPOT_MODEL_TO_CUBE_SIZE_RATIO;
-  const uniformScale = computeUniformScaleForTargetMaxDimension(
-    computeTeapotNormalizationReferenceDimension(boundingBoxSize),
-    targetReferenceDimension,
-  );
-
-  return {
-    geometry: teapotGeometry,
-    uniformScale,
-  };
-}
-
-/** Computes teapot uniform scale so its max dimension matches the AprilCube target size. */
-export function computeTeapotUniformScaleForCubeSize(cubeSizeMeters: number): number {
-  const normalizedTeapotGeometry = createNormalizedTeapotGeometry(cubeSizeMeters);
-  const uniformScale = normalizedTeapotGeometry.uniformScale;
-  normalizedTeapotGeometry.geometry.dispose();
-  return uniformScale;
 }
 
 /** Returns true when the three.js overlay should render for the current session input. */
@@ -213,6 +138,33 @@ function applyPoseToModelRoot(modelRoot: Object3D, cameraFromObjectPose: Pose): 
   );
   modelRoot.matrix.copy(objectMatrix);
   modelRoot.matrixAutoUpdate = false;
+  modelRoot.updateMatrixWorld(true);
+}
+
+function computeShadowFrustumHalfExtentMeters(cubeSizeMeters: number): number {
+  const normalizedModelTargetSizeMeters =
+    cubeSizeMeters * THREE_OVERLAY_MODEL_TO_CUBE_SIZE_RATIO;
+
+  return (
+    normalizedModelTargetSizeMeters *
+    THREE_OVERLAY_SHADOW_FRUSTUM_HALF_EXTENT_MULTIPLIER *
+    THREE_OVERLAY_SHADOW_FRUSTUM_DEPTH_MARGIN_MULTIPLIER
+  );
+}
+
+function configureKeyDirectionalLightShadowFrustum(
+  keyDirectionalLight: DirectionalLight,
+  shadowFrustumHalfExtentMeters: number,
+): void {
+  const shadowCamera = keyDirectionalLight.shadow.camera;
+  shadowCamera.left = -shadowFrustumHalfExtentMeters;
+  shadowCamera.right = shadowFrustumHalfExtentMeters;
+  shadowCamera.top = shadowFrustumHalfExtentMeters;
+  shadowCamera.bottom = -shadowFrustumHalfExtentMeters;
+  shadowCamera.near = THREE_OVERLAY_NEAR_CLIP_PLANE;
+  shadowCamera.far =
+    shadowFrustumHalfExtentMeters * THREE_OVERLAY_SHADOW_CAMERA_FAR_PLANE_MULTIPLIER;
+  shadowCamera.updateProjectionMatrix();
 }
 
 function hideThreeModelOverlay(session: ThreeModelOverlaySession): void {
@@ -220,11 +172,7 @@ function hideThreeModelOverlay(session: ThreeModelOverlaySession): void {
   session.renderer.clear();
 }
 
-/** Creates the three.js overlay session with a built-in Utah teapot model. */
-export function createThreeModelOverlay(
-  threeModelCanvas: HTMLCanvasElement,
-  cubeSizeMeters: number,
-): ThreeModelOverlaySession {
+function createThreeModelOverlayRenderer(threeModelCanvas: HTMLCanvasElement): WebGLRenderer {
   const renderer = new WebGLRenderer({
     canvas: threeModelCanvas,
     alpha: true,
@@ -233,46 +181,94 @@ export function createThreeModelOverlay(
   });
   renderer.setClearColor(new Color(0x000000), 0);
   renderer.autoClear = true;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = PCFSoftShadowMap;
+  return renderer;
+}
 
+function configureDirectionalLightShadows(keyDirectionalLight: DirectionalLight): void {
+  keyDirectionalLight.castShadow = true;
+  keyDirectionalLight.shadow.mapSize.set(
+    THREE_OVERLAY_SHADOW_MAP_SIZE_PIXELS,
+    THREE_OVERLAY_SHADOW_MAP_SIZE_PIXELS,
+  );
+  keyDirectionalLight.shadow.bias = THREE_OVERLAY_SHADOW_BIAS;
+  keyDirectionalLight.shadow.normalBias = THREE_OVERLAY_SHADOW_NORMAL_BIAS;
+}
+
+function createThreeModelOverlayScene(
+  shadowFrustumHalfExtentMeters: number,
+): {
+  readonly scene: Scene;
+  readonly camera: PerspectiveCamera;
+} {
   const scene = new Scene();
   const camera = new PerspectiveCamera();
   camera.matrixAutoUpdate = false;
   camera.matrixWorldAutoUpdate = false;
   camera.matrix.identity();
   camera.matrixWorld.identity();
+  scene.add(camera);
 
   const ambientLight = new AmbientLight(0xffffff, THREE_OVERLAY_AMBIENT_LIGHT_INTENSITY);
-  const directionalLight = new DirectionalLight(0xffffff, THREE_OVERLAY_DIRECTIONAL_LIGHT_INTENSITY);
-  directionalLight.position.set(0.2, 0.4, 0.6);
-  scene.add(ambientLight);
-  scene.add(directionalLight);
 
-  const normalizedTeapotGeometry = createNormalizedTeapotGeometry(cubeSizeMeters);
+  const keyDirectionalLight = new DirectionalLight(
+    0xffffff,
+    THREE_OVERLAY_KEY_DIRECTIONAL_LIGHT_INTENSITY,
+  );
+  keyDirectionalLight.position.copy(THREE_OVERLAY_KEY_LIGHT_CAMERA_SPACE_POSITION);
+  keyDirectionalLight.target.position.copy(THREE_OVERLAY_KEY_LIGHT_CAMERA_SPACE_TARGET);
+  configureDirectionalLightShadows(keyDirectionalLight);
+  configureKeyDirectionalLightShadowFrustum(
+    keyDirectionalLight,
+    shadowFrustumHalfExtentMeters,
+  );
+  camera.add(keyDirectionalLight.target);
+  camera.add(keyDirectionalLight);
+
+  const fillDirectionalLight = new DirectionalLight(
+    0xffffff,
+    THREE_OVERLAY_FILL_DIRECTIONAL_LIGHT_INTENSITY,
+  );
+  fillDirectionalLight.position.copy(THREE_OVERLAY_FILL_LIGHT_CAMERA_SPACE_POSITION);
+  fillDirectionalLight.target.position.copy(THREE_OVERLAY_FILL_LIGHT_CAMERA_SPACE_TARGET);
+  camera.add(fillDirectionalLight.target);
+  camera.add(fillDirectionalLight);
+
+  scene.add(ambientLight);
+
+  return {
+    scene,
+    camera,
+  };
+}
+
+/** Loads the default OBJ overlay model and creates a three.js overlay session. */
+export async function createThreeModelOverlay(
+  threeModelCanvas: HTMLCanvasElement,
+  cubeSizeMeters: number,
+  objUrl: string = DEFAULT_THREE_OVERLAY_OBJ_URL,
+): Promise<ThreeModelOverlaySession> {
+  const renderer = createThreeModelOverlayRenderer(threeModelCanvas);
+  const shadowFrustumHalfExtentMeters = computeShadowFrustumHalfExtentMeters(cubeSizeMeters);
+  const overlayScene = createThreeModelOverlayScene(shadowFrustumHalfExtentMeters);
+  const loadedNormalizedObjModel = await loadNormalizedObjOverlayModel(cubeSizeMeters, objUrl);
+  enableShadowCastingOnModelMeshes(loadedNormalizedObjModel.modelObject);
+
   const modelRoot = new Object3D();
   modelRoot.matrixAutoUpdate = false;
-
-  const modelMesh = new Mesh(
-    normalizedTeapotGeometry.geometry,
-    new MeshStandardMaterial({
-      color: THREE_OVERLAY_TEAPOT_BASE_COLOR,
-      metalness: 0.35,
-      roughness: 0.45,
-    }),
-  );
-  modelMesh.scale.setScalar(normalizedTeapotGeometry.uniformScale);
-  modelRoot.add(modelMesh);
+  modelRoot.add(loadedNormalizedObjModel.modelObject);
 
   const axisHelper = new AxesHelper(THREE_OVERLAY_AXIS_HELPER_LENGTH_METERS);
   modelRoot.add(axisHelper);
-
-  scene.add(modelRoot);
+  overlayScene.scene.add(modelRoot);
 
   return {
     renderer,
-    scene,
-    camera,
+    scene: overlayScene.scene,
+    camera: overlayScene.camera,
     modelRoot,
-    modelMesh,
+    modelObject: loadedNormalizedObjModel.modelObject,
     axisHelper,
   };
 }
@@ -319,18 +315,23 @@ export function renderThreeModelOverlay(
   session.renderer.render(session.scene, session.camera);
 }
 
-/** Disposes three.js GPU resources held by the overlay session. */
-export function disposeThreeModelOverlay(session: ThreeModelOverlaySession): void {
-  session.modelMesh.geometry.dispose();
+function disposeAxesHelper(axisHelper: AxesHelper): void {
+  axisHelper.geometry.dispose();
 
-  const modelMaterial = session.modelMesh.material;
-  if (Array.isArray(modelMaterial)) {
-    for (const material of modelMaterial) {
+  const axisHelperMaterial = axisHelper.material;
+  if (Array.isArray(axisHelperMaterial)) {
+    for (const material of axisHelperMaterial) {
       material.dispose();
     }
-  } else {
-    modelMaterial.dispose();
+    return;
   }
 
+  axisHelperMaterial.dispose();
+}
+
+/** Disposes three.js GPU resources held by the overlay session. */
+export function disposeThreeModelOverlay(session: ThreeModelOverlaySession): void {
+  disposeAxesHelper(session.axisHelper);
+  disposeObject3DResources(session.modelObject);
   session.renderer.dispose();
 }

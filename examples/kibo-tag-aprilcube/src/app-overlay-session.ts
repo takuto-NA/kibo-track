@@ -19,7 +19,6 @@ import {
   renderThreeModelOverlay,
   shouldDrawThreeModelOverlay,
   type ThreeModelOverlayRenderInput,
-  type ThreeModelOverlaySession,
 } from "./three-model-overlay.js";
 import type { OverlayDisplayMode } from "./types.js";
 
@@ -37,21 +36,36 @@ function syncViewportOverlayDisplayMode(
   );
 }
 
-function ensureThreeModelOverlaySession(
+function startThreeModelOverlayLoadIfNeeded(
   domElements: AppDomElements,
   state: AppRuntimeState,
   cubeSizeMeters: number,
-): ThreeModelOverlaySession {
-  if (state.threeModelOverlaySession !== null) {
-    return state.threeModelOverlaySession;
+): void {
+  if (state.threeModelOverlaySession !== null || state.threeModelOverlayLoadPromise !== null) {
+    return;
   }
 
-  const threeModelOverlaySession = createThreeModelOverlay(
+  // Guard: do not retry every frame after a failed load until the page reloads.
+  if (state.threeModelOverlayLoadError !== null) {
+    return;
+  }
+
+  state.threeModelOverlayLoadPromise = createThreeModelOverlay(
     domElements.threeModelCanvas,
     cubeSizeMeters,
-  );
-  state.threeModelOverlaySession = threeModelOverlaySession;
-  return threeModelOverlaySession;
+  )
+    .then((threeModelOverlaySession) => {
+      state.threeModelOverlaySession = threeModelOverlaySession;
+      state.threeModelOverlayLoadPromise = null;
+      state.threeModelOverlayLoadError = null;
+      return threeModelOverlaySession;
+    })
+    .catch((error: unknown) => {
+      state.threeModelOverlayLoadPromise = null;
+      state.threeModelOverlayLoadError =
+        error instanceof Error ? error.message : "three.js model load failed";
+      return null;
+    });
 }
 
 function buildThreeModelOverlayRenderInput(
@@ -122,13 +136,16 @@ export function renderThreeModelOverlayFrame(
     return;
   }
 
-  const threeModelOverlaySession = ensureThreeModelOverlaySession(
-    domElements,
-    state,
-    cubeSizeMeters,
-  );
+  if (state.threeModelOverlaySession === null) {
+    startThreeModelOverlayLoadIfNeeded(domElements, state, cubeSizeMeters);
+    return;
+  }
 
-  renderThreeModelOverlay(threeModelOverlaySession, domElements.threeModelCanvas, renderInput);
+  renderThreeModelOverlay(
+    state.threeModelOverlaySession,
+    domElements.threeModelCanvas,
+    renderInput,
+  );
 }
 
 /** Draws the 2D overlay and synchronizes the three.js model overlay. */
@@ -147,6 +164,19 @@ export function renderOverlayFrames(
     buildOverlayDrawInput(domElements, state, detectedMarkers, pose, cubeSizeMeters),
   );
   renderThreeModelOverlayFrame(domElements, state, pose, cubeSizeMeters);
+
+  if (
+    state.threeModelOverlaySession === null &&
+    state.threeModelOverlayLoadPromise !== null
+  ) {
+    void state.threeModelOverlayLoadPromise
+      .then(() => {
+        renderThreeModelOverlayFrame(domElements, state, pose, cubeSizeMeters);
+      })
+      .catch(() => {
+        // Load error is stored on state for diagnostics/UI follow-up.
+      });
+  }
 }
 
 /** Disposes the three.js overlay session and releases GPU resources. */
@@ -157,6 +187,8 @@ export function disposeAppThreeModelOverlaySession(state: AppRuntimeState): void
 
   disposeThreeModelOverlay(state.threeModelOverlaySession);
   state.threeModelOverlaySession = null;
+  state.threeModelOverlayLoadPromise = null;
+  state.threeModelOverlayLoadError = null;
 }
 
 /** Redraws the overlay from the latest tracked pose and detected markers. */
@@ -181,3 +213,4 @@ export function redrawCurrentOverlayFrame(
     aprilCubeConfig.cubeSize,
   );
 }
+
