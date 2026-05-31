@@ -18,6 +18,19 @@
         <button id="start-camera-button" type="button">Start Camera</button>
         <button id="start-detector-button" type="button" disabled>Start Detector</button>
         <label>
+          Camera resolution
+          <select id="camera-resolution-select" data-testid="camera-resolution-select"></select>
+        </label>
+        <label>
+          Camera FPS
+          <select id="camera-frame-rate-select" data-testid="camera-frame-rate-select" disabled>
+            <option value="deviceDefault" selected>Device default</option>
+          </select>
+        </label>
+        <p id="camera-frame-rate-hint" data-testid="camera-frame-rate-hint">
+          Select a resolution to probe available frame rates…
+        </p>
+        <label>
           Corner order
           <select id="corner-order-select">
             <option value="canonical">canonical</option>

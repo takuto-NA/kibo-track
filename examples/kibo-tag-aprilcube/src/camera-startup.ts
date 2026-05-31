@@ -6,7 +6,10 @@ import {
   FIRST_FRAME_CAPTURE_RETRY_DELAY_MILLISECONDS,
   VIDEO_METADATA_TIMEOUT_MILLISECONDS,
 } from "./constants.js";
+import { buildCameraVideoConstraints, negotiateCameraFrameRate } from "./camera-frame-rate.js";
+import type { CameraResolutionPixels } from "./camera-resolution.js";
 import type {
+  CameraFrameRateSelection,
   CameraStartupFailureReason,
   CameraStartupResult,
 } from "./types.js";
@@ -14,6 +17,11 @@ import type {
 export interface CameraStartupElements {
   readonly videoElement: HTMLVideoElement;
   readonly captureCanvas: HTMLCanvasElement;
+}
+
+export interface CameraStartupOptions {
+  readonly frameRateSelection: CameraFrameRateSelection;
+  readonly resolution: CameraResolutionPixels;
 }
 
 function mapGetUserMediaError(error: unknown): CameraStartupFailureReason {
@@ -143,6 +151,7 @@ function readCameraLabel(mediaStream: MediaStream): string | null {
 /** Starts the camera and validates that a usable first frame can be captured. */
 export async function startCamera(
   elements: CameraStartupElements,
+  options: CameraStartupOptions,
 ): Promise<CameraStartupResult> {
   if (!window.isSecureContext) {
     return {
@@ -168,10 +177,10 @@ export async function startCamera(
 
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
+      video: buildCameraVideoConstraints({
+        resolution: options.resolution,
+        frameRateSelection: options.frameRateSelection,
+      }),
       audio: false,
     });
   } catch (error) {
@@ -216,12 +225,24 @@ export async function startCamera(
     };
   }
 
+  const frameRateNegotiation = await negotiateCameraFrameRate(
+    mediaStream,
+    options.frameRateSelection,
+  );
+
   return {
     success: true,
     mediaStream,
     videoWidth: elements.videoElement.videoWidth,
     videoHeight: elements.videoElement.videoHeight,
     cameraLabel: readCameraLabel(mediaStream),
+    requestedFrameRateSelection: options.frameRateSelection,
+    requestedResolutionWidthPixels: options.resolution.widthPixels,
+    requestedResolutionHeightPixels: options.resolution.heightPixels,
+    actualFrameRate: frameRateNegotiation.actualFrameRate,
+    capabilityMinFrameRate: frameRateNegotiation.capabilityMinFrameRate,
+    capabilityMaxFrameRate: frameRateNegotiation.capabilityMaxFrameRate,
+    frameRateMismatch: frameRateNegotiation.frameRateMismatch,
   };
 }
 

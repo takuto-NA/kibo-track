@@ -13,6 +13,20 @@ import {
   EXAMPLE_APRILCUBE_LAYOUT_JSON,
 } from "./aprilcube-config.js";
 import { captureVideoFrameToGrayscale } from "./camera.js";
+import {
+  formatCameraFrameRateProbeMessage,
+  probeCameraFrameRateOptions,
+  readSelectedCameraFrameRateSelection,
+  readVideoTrackFrameRate,
+  renderCameraFrameRateSelectOptions,
+} from "./camera-frame-rate.js";
+import {
+  cameraResolutionMatchesRequest,
+  formatCameraResolutionLabel,
+  readSelectedCameraResolution,
+  renderCameraResolutionSelectOptions,
+  type CameraResolutionPixels,
+} from "./camera-resolution.js";
 import { startCamera, stopCameraStream } from "./camera-startup.js";
 import {
   detectAprilCubeMarkers,
@@ -34,11 +48,24 @@ import {
   synchronizeOverlayCanvasSize,
   validateResolutionConsistency,
 } from "./resolution-gate.js";
-import type { AppLifecycleState, CornerOrderSelection, OverlayDisplayMode, ResolutionSnapshot } from "./types.js";
+import {
+  INTRINSICS_REFERENCE_HEIGHT_PIXELS,
+  INTRINSICS_REFERENCE_WIDTH_PIXELS,
+} from "./constants.js";
+import type {
+  AppLifecycleState,
+  CameraFrameRateSelection,
+  CornerOrderSelection,
+  OverlayDisplayMode,
+  ResolutionSnapshot,
+} from "./types.js";
 
 interface AppDomElements {
   readonly startCameraButton: HTMLButtonElement;
   readonly startDetectorButton: HTMLButtonElement;
+  readonly cameraResolutionSelect: HTMLSelectElement;
+  readonly cameraFrameRateSelect: HTMLSelectElement;
+  readonly cameraFrameRateHintElement: HTMLElement;
   readonly cornerOrderSelect: HTMLSelectElement;
   readonly calibrationJsonInput: HTMLTextAreaElement;
   readonly applyCalibrationButton: HTMLButtonElement;
@@ -73,11 +100,20 @@ interface AppRuntimeState {
   isProcessingTrackingFrame: boolean;
   poseTracker: PoseTracker;
   overlayDisplayMode: OverlayDisplayMode;
+  requestedCameraResolution: CameraResolutionPixels;
+  requestedCameraFrameRateSelection: CameraFrameRateSelection;
+  actualCameraFrameRate: number | null;
+  cameraFrameRateCapabilityMin: number | null;
+  cameraFrameRateCapabilityMax: number | null;
+  cameraFrameRateMismatch: boolean;
 }
 
 function readDomElements(): AppDomElements {
   const startCameraButton = document.querySelector<HTMLButtonElement>("#start-camera-button");
   const startDetectorButton = document.querySelector<HTMLButtonElement>("#start-detector-button");
+  const cameraResolutionSelect = document.querySelector<HTMLSelectElement>("#camera-resolution-select");
+  const cameraFrameRateSelect = document.querySelector<HTMLSelectElement>("#camera-frame-rate-select");
+  const cameraFrameRateHintElement = document.querySelector<HTMLElement>("#camera-frame-rate-hint");
   const cornerOrderSelect = document.querySelector<HTMLSelectElement>("#corner-order-select");
   const calibrationJsonInput = document.querySelector<HTMLTextAreaElement>("#calibration-json-input");
   const applyCalibrationButton = document.querySelector<HTMLButtonElement>("#apply-calibration-button");
@@ -99,6 +135,9 @@ function readDomElements(): AppDomElements {
   if (
     startCameraButton === null ||
     startDetectorButton === null ||
+    cameraResolutionSelect === null ||
+    cameraFrameRateSelect === null ||
+    cameraFrameRateHintElement === null ||
     cornerOrderSelect === null ||
     calibrationJsonInput === null ||
     applyCalibrationButton === null ||
@@ -123,6 +162,9 @@ function readDomElements(): AppDomElements {
   return {
     startCameraButton,
     startDetectorButton,
+    cameraResolutionSelect,
+    cameraFrameRateSelect,
+    cameraFrameRateHintElement,
     cornerOrderSelect,
     calibrationJsonInput,
     applyCalibrationButton,
@@ -161,6 +203,15 @@ function createInitialRuntimeState(): AppRuntimeState {
     isProcessingTrackingFrame: false,
     poseTracker: new PoseTracker(),
     overlayDisplayMode: "cameraWithOverlay",
+    requestedCameraResolution: {
+      widthPixels: INTRINSICS_REFERENCE_WIDTH_PIXELS,
+      heightPixels: INTRINSICS_REFERENCE_HEIGHT_PIXELS,
+    },
+    requestedCameraFrameRateSelection: "deviceDefault",
+    actualCameraFrameRate: null,
+    cameraFrameRateCapabilityMin: null,
+    cameraFrameRateCapabilityMax: null,
+    cameraFrameRateMismatch: false,
   };
 }
 
@@ -253,6 +304,14 @@ function formatDiagnostics(state: AppRuntimeState): string {
     `coastFrameCount: ${trackerSnapshot.coastFrameCount}`,
     `detectedMarkerCount: ${state.detectedMarkers.length}`,
     `overlayDisplayMode: ${state.overlayDisplayMode}`,
+    `requestedCameraResolution: ${formatCameraResolutionLabel(state.requestedCameraResolution)}`,
+    `requestedCameraFrameRate: ${state.requestedCameraFrameRateSelection}`,
+    `actualCameraFrameRate: ${state.actualCameraFrameRate ?? "unknown"}`,
+    `cameraFrameRateCapability: ${formatFrameRateCapabilityRange(
+      state.cameraFrameRateCapabilityMin,
+      state.cameraFrameRateCapabilityMax,
+    )}`,
+    `cameraFrameRateMismatch: ${state.cameraFrameRateMismatch}`,
   ];
 
   if (state.resolutionSnapshot !== null) {
@@ -345,6 +404,58 @@ function formatDetectionResults(state: AppRuntimeState): string {
   return lines.join("\n");
 }
 
+function formatFrameRateCapabilityRange(
+  capabilityMinFrameRate: number | null,
+  capabilityMaxFrameRate: number | null,
+): string {
+  if (capabilityMinFrameRate === null && capabilityMaxFrameRate === null) {
+    return "unknown";
+  }
+
+  return `${capabilityMinFrameRate ?? "?"}-${capabilityMaxFrameRate ?? "?"} fps`;
+}
+
+function formatCameraStatusMessage(
+  videoWidth: number,
+  videoHeight: number,
+  actualFrameRate: number | null,
+  requestedResolution: CameraResolutionPixels,
+  requestedFrameRateSelection: CameraFrameRateSelection,
+  frameRateMismatch: boolean,
+  capabilityMaxFrameRate: number | null,
+): string {
+  const resolutionMessage = `cameraReady ${videoWidth}x${videoHeight}`;
+  const resolutionMismatch = !cameraResolutionMatchesRequest(
+    requestedResolution,
+    videoWidth,
+    videoHeight,
+  );
+  const resolutionSuffix = resolutionMismatch
+    ? ` (requested ${formatCameraResolutionLabel(requestedResolution)})`
+    : "";
+
+  if (actualFrameRate === null) {
+    return `${resolutionMessage}${resolutionSuffix}`;
+  }
+
+  const frameRateMessage = `${resolutionMessage}${resolutionSuffix} @ ${actualFrameRate.toFixed(1)} fps`;
+
+  if (!frameRateMismatch) {
+    return frameRateMessage;
+  }
+
+  if (requestedFrameRateSelection !== "deviceDefault") {
+    const capabilityHint =
+      capabilityMaxFrameRate !== null
+        ? `, device max ${capabilityMaxFrameRate.toFixed(0)} at this resolution`
+        : "";
+
+    return `${frameRateMessage} (requested ${requestedFrameRateSelection} fps${capabilityHint})`;
+  }
+
+  return frameRateMessage;
+}
+
 function updateUi(
   domElements: AppDomElements,
   state: AppRuntimeState,
@@ -361,6 +472,11 @@ function updateUi(
   domElements.diagnosticsTextElement.textContent = formatDiagnostics(state);
   domElements.detectionResultsTextElement.textContent = formatDetectionResults(state);
   domElements.startDetectorButton.disabled = state.lifecycleState !== "resolutionReady";
+  const cameraControlsLocked =
+    state.lifecycleState !== "idle" && state.lifecycleState !== "failed";
+  const cameraProbeInProgress = domElements.cameraFrameRateSelect.dataset.probeComplete !== "true";
+  domElements.cameraResolutionSelect.disabled = cameraControlsLocked || cameraProbeInProgress;
+  domElements.cameraFrameRateSelect.disabled = cameraControlsLocked || cameraProbeInProgress;
   domElements.calibrationStatusElement.textContent = `calibration: ${state.intrinsicsSource}`;
 }
 
@@ -370,12 +486,22 @@ async function handleStartCamera(
 ): Promise<void> {
   state.lifecycleState = "startingCamera";
   state.poseTracker.reset();
+  state.requestedCameraResolution = readSelectedCameraResolution(domElements.cameraResolutionSelect);
+  state.requestedCameraFrameRateSelection = readSelectedCameraFrameRateSelection(
+    domElements.cameraFrameRateSelect,
+  );
   updateUi(domElements, state, "starting", "pending", "not started", "not estimated");
 
-  const startupResult = await startCamera({
-    videoElement: domElements.videoElement,
-    captureCanvas: domElements.captureCanvas,
-  });
+  const startupResult = await startCamera(
+    {
+      videoElement: domElements.videoElement,
+      captureCanvas: domElements.captureCanvas,
+    },
+    {
+      frameRateSelection: state.requestedCameraFrameRateSelection,
+      resolution: state.requestedCameraResolution,
+    },
+  );
 
   if (!startupResult.success) {
     state.lifecycleState = "failed";
@@ -391,6 +517,10 @@ async function handleStartCamera(
   }
 
   state.mediaStream = startupResult.mediaStream;
+  state.actualCameraFrameRate = startupResult.actualFrameRate;
+  state.cameraFrameRateCapabilityMin = startupResult.capabilityMinFrameRate;
+  state.cameraFrameRateCapabilityMax = startupResult.capabilityMaxFrameRate;
+  state.cameraFrameRateMismatch = startupResult.frameRateMismatch;
   state.lifecycleState = "cameraReady";
   synchronizeOverlayCanvasSize(domElements.captureCanvas, domElements.overlayCanvas);
 
@@ -452,7 +582,15 @@ async function handleStartCamera(
   updateUi(
     domElements,
     state,
-    `cameraReady ${startupResult.videoWidth}x${startupResult.videoHeight}`,
+    formatCameraStatusMessage(
+      startupResult.videoWidth,
+      startupResult.videoHeight,
+      startupResult.actualFrameRate,
+      state.requestedCameraResolution,
+      startupResult.requestedFrameRateSelection,
+      startupResult.frameRateMismatch,
+      startupResult.capabilityMaxFrameRate,
+    ),
     "resolutionReady",
     "not started",
     state.intrinsicsSource === "placeholder" ? "approximate intrinsics" : "calibrated intrinsics",
@@ -729,7 +867,59 @@ function bindApplication(): void {
     stopCameraStream(state.mediaStream);
   });
 
+  renderCameraResolutionSelectOptions(domElements.cameraResolutionSelect);
+
+  domElements.cameraResolutionSelect.addEventListener("change", () => {
+    if (state.lifecycleState !== "idle" && state.lifecycleState !== "failed") {
+      return;
+    }
+
+    void refreshCameraCaptureOptions(domElements, state);
+  });
+
   updateUi(domElements, state, "not started", "not checked", "not started", "not estimated");
+  void refreshCameraCaptureOptions(domElements, state);
+}
+
+async function refreshCameraCaptureOptions(
+  domElements: AppDomElements,
+  state: AppRuntimeState,
+): Promise<void> {
+  const selectedResolution = readSelectedCameraResolution(domElements.cameraResolutionSelect);
+
+  domElements.cameraFrameRateSelect.dataset.probeComplete = "false";
+  domElements.cameraFrameRateHintElement.textContent = `Probing frame rates at ${formatCameraResolutionLabel(selectedResolution)}…`;
+  updateUi(
+    domElements,
+    state,
+    domElements.cameraStatusElement.textContent ?? "not started",
+    domElements.resolutionStatusElement.textContent ?? "not checked",
+    domElements.detectorStatusElement.textContent ?? "not started",
+    domElements.poseStatusElement.textContent ?? "not estimated",
+  );
+
+  const probeResult = await probeCameraFrameRateOptions(selectedResolution);
+
+  if (probeResult.success) {
+    renderCameraFrameRateSelectOptions(
+      domElements.cameraFrameRateSelect,
+      probeResult.supportedCandidateFrameRates,
+    );
+  }
+
+  domElements.cameraFrameRateSelect.dataset.probeComplete = "true";
+  domElements.cameraFrameRateHintElement.textContent = formatCameraFrameRateProbeMessage(
+    probeResult,
+    selectedResolution,
+  );
+  updateUi(
+    domElements,
+    state,
+    domElements.cameraStatusElement.textContent ?? "not started",
+    domElements.resolutionStatusElement.textContent ?? "not checked",
+    domElements.detectorStatusElement.textContent ?? "not started",
+    domElements.poseStatusElement.textContent ?? "not estimated",
+  );
 }
 
 bindApplication();

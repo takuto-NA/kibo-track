@@ -24,6 +24,12 @@ export type CameraStartupFailureReason =
   | "metadataTimeout"
   | "emptyFrame";
 
+/**
+ * Camera frame-rate choice from the UI.
+ * Explicit values are numeric fps strings discovered via getCapabilities probing.
+ */
+export type CameraFrameRateSelection = "deviceDefault" | `${number}`;
+
 /** Successful camera startup result. */
 export interface CameraStartupSuccess {
   readonly success: true;
@@ -31,6 +37,13 @@ export interface CameraStartupSuccess {
   readonly videoWidth: number;
   readonly videoHeight: number;
   readonly cameraLabel: string | null;
+  readonly requestedFrameRateSelection: CameraFrameRateSelection;
+  readonly requestedResolutionWidthPixels: number;
+  readonly requestedResolutionHeightPixels: number;
+  readonly actualFrameRate: number | null;
+  readonly capabilityMinFrameRate: number | null;
+  readonly capabilityMaxFrameRate: number | null;
+  readonly frameRateMismatch: boolean;
 }
 
 /** Failed camera startup result. */

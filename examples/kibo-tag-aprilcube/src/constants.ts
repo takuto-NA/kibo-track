@@ -44,6 +44,21 @@ export const PLACEHOLDER_PRINCIPAL_POINT_X_PIXELS = 640;
 /** Placeholder principal point Y at the reference resolution. */
 export const PLACEHOLDER_PRINCIPAL_POINT_Y_PIXELS = 360;
 
+/** Target camera frame rate when the 30 fps option is selected. */
+export const CAMERA_FRAME_RATE_30_FPS = 30;
+
+/** Target camera frame rate when the 60 fps option is selected. */
+export const CAMERA_FRAME_RATE_60_FPS = 60;
+
+/** Common fps values offered when they fall within the probed device capability range. */
+export const CAMERA_FRAME_RATE_CANDIDATE_VALUES = [
+  15,
+  24,
+  CAMERA_FRAME_RATE_30_FPS,
+  48,
+  CAMERA_FRAME_RATE_60_FPS,
+] as const;
+
 /** Cube wireframe edge color. */
 export const CUBE_WIREFRAME_STROKE_COLOR = "#00ff88";
 
