@@ -63,9 +63,9 @@
         </label>
         <button id="apply-calibration-button" type="button">Apply Calibration</button>
         <button id="clear-calibration-button" type="button">Clear Calibration</button>
-        <label class="overlay-mode-label">
-          <input id="wireframe-only-checkbox" type="checkbox" data-testid="wireframe-only-checkbox" />
-          Wireframe only (hide camera)
+        <label>
+          Overlay
+          <select id="overlay-display-mode-select" data-testid="overlay-display-mode-select"></select>
         </label>
         <p id="calibration-status" data-testid="calibration-status">calibration: not loaded</p>
       </section>
@@ -74,6 +74,7 @@
         <video id="camera-video" autoplay playsinline muted hidden></video>
         <canvas id="capture-canvas" data-testid="capture-canvas"></canvas>
         <canvas id="overlay-canvas" data-testid="overlay-canvas"></canvas>
+        <canvas id="three-model-canvas" data-testid="three-model-canvas"></canvas>
       </section>
 
       <section id="detection-results-panel" data-testid="detection-results-panel">

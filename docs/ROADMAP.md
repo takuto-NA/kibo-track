@@ -96,3 +96,24 @@
 **Non-goals**:
 - bit-exact OpenCV reproduction
 - OpenCV.js bundling
+
+## v0.7 — Anchored multi-object scene tracking
+
+**Goal**: 複数の AprilCube / tag rig を明示的な ID グループで扱い、OptiTrack の L 字 origin marker のような固定 origin fixture から world 座標系を復元して tracked object pose を推定する。
+
+**Exit criteria**:
+- `anchor` rig と `tracked` rig を区別する scene-level public type
+- origin fixture で 0 位置 / world axis を定義する calibration flow
+- rig ごとに marker ID set、AprilCube config、任意の `worldFromObject` を定義できる
+- 検出済み marker を rig ごとに deterministic に partition する
+- visible anchor から `worldFromCamera` を推定する
+- visible tracked rig から `cameraFromObject` と `worldFromObject` を返す
+- anchor が見えない frame では `worldFromCamera` の鮮度 / coasting 状態を明示する
+- 複数 anchor が見える場合の pose selection / fusion policy を ADR で固定する
+- single-face planar anchor の弱さと multi-face / non-coplanar anchor 推奨を docs に明記する
+
+**Non-goals**:
+- marker ID だけから未知の物体クラスタを自動発見する
+- SLAM / bundle adjustment / map optimization
+- camera calibration UI
+- detector integration

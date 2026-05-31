@@ -18,11 +18,13 @@
   "dependencies": {
     "comlink": "^4.4.2",
     "ml-matrix": "^6.12.2",
-    "numopt-js": "^0.4.0"
+    "numopt-js": "^0.4.0",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
     "@types/node": "^22.15.21",
+    "@types/three": "^0.184.1",
     "@vitejs/plugin-basic-ssl": "^2.0.0",
     "cross-env": "^7.0.3",
     "happy-dom": "^17.4.4",

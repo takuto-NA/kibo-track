@@ -150,4 +150,8 @@ export interface ReferenceCameraIntrinsics {
 export type CornerOrderSelection = AprilCubeCornerOrderName;
 
 /** Viewport overlay rendering mode. */
-export type OverlayDisplayMode = "cameraWithOverlay" | "wireframeOnly";
+export type OverlayDisplayMode =
+  | "cameraWithWireframe"
+  | "wireframeOnly"
+  | "cameraWithModel"
+  | "modelOnly";

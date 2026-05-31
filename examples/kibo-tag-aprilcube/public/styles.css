@@ -47,13 +47,11 @@ header h1 {
 
 .overlay-mode-label {
   display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-  user-select: none;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
-#viewport.viewport-wireframe-only {
+#viewport.viewport-overlay-only-background {
   background: #000;
 }
 
@@ -83,7 +81,8 @@ button:disabled {
 }
 
 #capture-canvas,
-#overlay-canvas {
+#overlay-canvas,
+#three-model-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -96,6 +95,10 @@ button:disabled {
 }
 
 #overlay-canvas {
+  pointer-events: none;
+}
+
+#three-model-canvas {
   pointer-events: none;
 }
 

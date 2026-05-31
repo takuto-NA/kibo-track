@@ -11,8 +11,7 @@ import { undistortDetectedMarkers } from "./camera-distortion.js";
 import { detectAprilCubeMarkers } from "./kibo-tag-detector.js";
 import type { AppDomElements, AppRuntimeState } from "./app-runtime.js";
 import { updateAppUi } from "./app-ui-text.js";
-import { buildOverlayDrawInput } from "./app-overlay-session.js";
-import { drawOverlay } from "./overlay.js";
+import { renderOverlayFrames } from "./app-overlay-session.js";
 import { readCornerOrderFromSelectValue } from "./read-corner-order-selection.js";
 
 function stopTrackingLoop(state: AppRuntimeState): void {
@@ -70,14 +69,12 @@ async function runTrackingFrame(
     state.trackedPose = missedFrameUpdate.trackedPose;
     state.latestPoseResult = null;
 
-    drawOverlay(
-      buildOverlayDrawInput(
-        domElements,
-        state,
-        [],
-        missedFrameUpdate.trackedPose,
-        aprilCubeConfig.cubeSize,
-      ),
+    renderOverlayFrames(
+      domElements,
+      state,
+      [],
+      missedFrameUpdate.trackedPose,
+      aprilCubeConfig.cubeSize,
     );
 
     updateAppUi(
@@ -130,14 +127,12 @@ async function runTrackingFrame(
     poseMessage = `${state.latestPoseResult.stage}:${state.latestPoseResult.reason}`;
   }
 
-  drawOverlay(
-    buildOverlayDrawInput(
-      domElements,
-      state,
-      state.detectedMarkers,
-      overlayPose,
-      aprilCubeConfig.cubeSize,
-    ),
+  renderOverlayFrames(
+    domElements,
+    state,
+    state.detectedMarkers,
+    overlayPose,
+    aprilCubeConfig.cubeSize,
   );
 
   updateAppUi(

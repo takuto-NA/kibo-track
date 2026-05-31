@@ -25,6 +25,14 @@ import {
 } from "./constants.js";
 import { synchronizeOverlayCanvasSize } from "./resolution-gate.js";
 import type { OverlayDisplayMode } from "./types.js";
+import {
+  DEFAULT_OVERLAY_DISPLAY_MODE,
+  readOverlayDisplayModeFromSelectValue,
+  shouldShowCameraFeed,
+  shouldShowMarkerOutlines,
+  shouldShowWireframeOverlay,
+  shouldUseOverlayOnlyBackground,
+} from "./overlay-display-mode.js";
 
 export interface OverlayDrawInput {
   readonly overlayCanvas: HTMLCanvasElement;
@@ -220,15 +228,15 @@ export function drawOverlay(input: OverlayDrawInput): void {
     return;
   }
 
-  const overlayDisplayMode = input.overlayDisplayMode ?? "cameraWithOverlay";
+  const overlayDisplayMode = input.overlayDisplayMode ?? DEFAULT_OVERLAY_DISPLAY_MODE;
 
   synchronizeOverlayCanvasSize(input.captureCanvas, input.overlayCanvas);
 
   canvasContext.clearRect(0, 0, input.overlayCanvas.width, input.overlayCanvas.height);
 
-  if (overlayDisplayMode === "wireframeOnly") {
+  if (shouldUseOverlayOnlyBackground(overlayDisplayMode)) {
     fillWireframeOnlyBackground(canvasContext, input.overlayCanvas);
-  } else {
+  } else if (shouldShowCameraFeed(overlayDisplayMode)) {
     canvasContext.drawImage(
       input.captureCanvas,
       0,
@@ -236,10 +244,13 @@ export function drawOverlay(input: OverlayDrawInput): void {
       input.overlayCanvas.width,
       input.overlayCanvas.height,
     );
-    drawMarkerOutlines(canvasContext, input.detectedMarkers);
+
+    if (shouldShowMarkerOutlines(overlayDisplayMode)) {
+      drawMarkerOutlines(canvasContext, input.detectedMarkers);
+    }
   }
 
-  if (input.pose === null) {
+  if (input.pose === null || !shouldShowWireframeOverlay(overlayDisplayMode)) {
     return;
   }
 

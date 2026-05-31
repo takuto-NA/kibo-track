@@ -15,7 +15,8 @@ import {
   initializeCameraCaptureOptions,
   syncCameraCaptureResolutionPreview,
 } from "./app-handlers.js";
-import { redrawCurrentOverlayFrame } from "./app-overlay-session.js";
+import { redrawCurrentOverlayFrame, disposeAppThreeModelOverlaySession } from "./app-overlay-session.js";
+import { renderOverlayDisplayModeSelectOptions } from "./overlay-display-mode.js";
 import { stopAppTrackingLoop } from "./app-tracking-loop.js";
 import { updateAppUi } from "./app-ui-text.js";
 
@@ -55,7 +56,7 @@ function bindApplication(): void {
     handleClearCalibration(domElements, state);
   });
 
-  domElements.wireframeOnlyCheckbox.addEventListener("change", () => {
+  domElements.overlayDisplayModeSelect.addEventListener("change", () => {
     redrawCurrentOverlayFrame(domElements, state);
     updateAppUi(
       domElements,
@@ -67,8 +68,11 @@ function bindApplication(): void {
     );
   });
 
+  renderOverlayDisplayModeSelectOptions(domElements.overlayDisplayModeSelect);
+
   window.addEventListener("pagehide", () => {
     stopAppTrackingLoop(state);
+    disposeAppThreeModelOverlaySession(state);
     stopCameraStream(state.mediaStream);
   });
 

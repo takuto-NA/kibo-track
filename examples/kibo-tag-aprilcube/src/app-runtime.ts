@@ -16,6 +16,8 @@ import {
 import { PoseTracker } from "./pose-tracker.js";
 import { resolveReferenceCameraIntrinsics, type IntrinsicsSourceLabel } from "./resolve-reference-intrinsics.js";
 import type { KiboTagApriltagInstance } from "./kibo-tag-detector.js";
+import type { ThreeModelOverlaySession } from "./three-model-overlay.js";
+import { DEFAULT_OVERLAY_DISPLAY_MODE } from "./overlay-display-mode.js";
 import type {
   AppLifecycleState,
   CameraFacingModeSelection,
@@ -44,11 +46,12 @@ export interface AppDomElements {
   readonly poseStatusElement: HTMLElement;
   readonly diagnosticsTextElement: HTMLElement;
   readonly detectionResultsTextElement: HTMLElement;
-  readonly wireframeOnlyCheckbox: HTMLInputElement;
+  readonly overlayDisplayModeSelect: HTMLSelectElement;
   readonly viewportElement: HTMLElement;
   readonly videoElement: HTMLVideoElement;
   readonly captureCanvas: HTMLCanvasElement;
   readonly overlayCanvas: HTMLCanvasElement;
+  readonly threeModelCanvas: HTMLCanvasElement;
 }
 
 export interface AppRuntimeState {
@@ -66,6 +69,7 @@ export interface AppRuntimeState {
   isProcessingTrackingFrame: boolean;
   poseTracker: PoseTracker;
   overlayDisplayMode: OverlayDisplayMode;
+  threeModelOverlaySession: ThreeModelOverlaySession | null;
   requestedCameraFacingModeSelection: CameraFacingModeSelection;
   actualCameraFacingMode: CameraFacingModeSelection | null;
   requestedCameraResolution: CameraResolutionPixels;
@@ -97,11 +101,12 @@ export function readAppDomElements(): AppDomElements {
   const poseStatusElement = document.querySelector<HTMLElement>("#pose-status");
   const diagnosticsTextElement = document.querySelector<HTMLElement>("#diagnostics-text");
   const detectionResultsTextElement = document.querySelector<HTMLElement>("#detection-results-text");
-  const wireframeOnlyCheckbox = document.querySelector<HTMLInputElement>("#wireframe-only-checkbox");
+  const overlayDisplayModeSelect = document.querySelector<HTMLSelectElement>("#overlay-display-mode-select");
   const viewportElement = document.querySelector<HTMLElement>("#viewport");
   const videoElement = document.querySelector<HTMLVideoElement>("#camera-video");
   const captureCanvas = document.querySelector<HTMLCanvasElement>("#capture-canvas");
   const overlayCanvas = document.querySelector<HTMLCanvasElement>("#overlay-canvas");
+  const threeModelCanvas = document.querySelector<HTMLCanvasElement>("#three-model-canvas");
 
   if (
     startCameraButton === null ||
@@ -123,11 +128,12 @@ export function readAppDomElements(): AppDomElements {
     poseStatusElement === null ||
     diagnosticsTextElement === null ||
     detectionResultsTextElement === null ||
-    wireframeOnlyCheckbox === null ||
+    overlayDisplayModeSelect === null ||
     viewportElement === null ||
     videoElement === null ||
     captureCanvas === null ||
-    overlayCanvas === null
+    overlayCanvas === null ||
+    threeModelCanvas === null
   ) {
     throw new Error("Required DOM elements are missing.");
   }
@@ -152,11 +158,12 @@ export function readAppDomElements(): AppDomElements {
     poseStatusElement,
     diagnosticsTextElement,
     detectionResultsTextElement,
-    wireframeOnlyCheckbox,
+    overlayDisplayModeSelect,
     viewportElement,
     videoElement,
     captureCanvas,
     overlayCanvas,
+    threeModelCanvas,
   };
 }
 
@@ -178,7 +185,8 @@ export function createInitialAppRuntimeState(): AppRuntimeState {
     animationFrameIdentifier: null,
     isProcessingTrackingFrame: false,
     poseTracker: new PoseTracker(),
-    overlayDisplayMode: "cameraWithOverlay",
+    overlayDisplayMode: DEFAULT_OVERLAY_DISPLAY_MODE,
+    threeModelOverlaySession: null,
     requestedCameraFacingModeSelection: DEFAULT_CAMERA_FACING_MODE_SELECTION,
     actualCameraFacingMode: null,
     requestedCameraResolution: {
