@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kibo-track AprilCube + kibo-tag Example</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <header>
+        <h1>Kibo-track AprilCube Example</h1>
+        <p class="subtitle">kibo-tag WASM detector + estimateAprilCubePose overlay</p>
+      </header>
+
+      <section id="controls">
+        <button id="start-camera-button" type="button">Start Camera</button>
+        <button id="start-detector-button" type="button" disabled>Start Detector</button>
+        <label>
+          Corner order
+          <select id="corner-order-select">
+            <option value="canonical">canonical</option>
+            <option value="clockwiseRotate90">clockwiseRotate90</option>
+            <option value="clockwiseRotate180">clockwiseRotate180</option>
+            <option value="clockwiseRotate270">clockwiseRotate270</option>
+            <option value="reverse">reverse</option>
+          </select>
+        </label>
+      </section>
+
+      <section id="status-panel" data-testid="status-panel">
+        <p>Status: <span id="app-status" data-testid="app-status">idle</span></p>
+        <p>Camera: <span id="camera-status" data-testid="camera-status">not started</span></p>
+        <p>Resolution: <span id="resolution-status" data-testid="resolution-status">not checked</span></p>
+        <p>Detector: <span id="detector-status" data-testid="detector-status">not started</span></p>
+        <p>Pose: <span id="pose-status" data-testid="pose-status">not estimated</span></p>
+      </section>
+
+      <section id="diagnostics-panel" data-testid="diagnostics-panel">
+        <h2>Diagnostics</h2>
+        <pre id="diagnostics-text" data-testid="diagnostics-text">Waiting to start...</pre>
+      </section>
+
+      <section id="viewport">
+        <video id="camera-video" autoplay playsinline muted hidden></video>
+        <canvas id="capture-canvas" data-testid="capture-canvas"></canvas>
+        <canvas id="overlay-canvas" data-testid="overlay-canvas"></canvas>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

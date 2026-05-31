@@ -1,0 +1,29 @@
+{
+  "name": "kibo-tag-aprilcube-example",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "playwright test",
+    "test:camera:real": "playwright test e2e/real-camera.spec.ts --headed"
+  },
+  "dependencies": {
+    "comlink": "^4.4.2",
+    "ml-matrix": "^6.12.2",
+    "numopt-js": "^0.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.21",
+    "happy-dom": "^17.4.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}
