@@ -17,8 +17,13 @@ import {
   AXIS_Y_COLOR,
   AXIS_Z_COLOR,
   CUBE_WIREFRAME_STROKE_COLOR,
+  CUBE_WIREFRAME_STROKE_WIDTH_PX,
   MARKER_OUTLINE_STROKE_COLOR,
+  MARKER_OUTLINE_STROKE_WIDTH_PX,
+  POSE_AXIS_STROKE_WIDTH_PX,
+  WIREFRAME_ONLY_VIEWPORT_BACKGROUND_COLOR,
 } from "./constants.js";
+import type { OverlayDisplayMode } from "./types.js";
 
 export interface OverlayDrawInput {
   readonly overlayCanvas: HTMLCanvasElement;
@@ -28,6 +33,7 @@ export interface OverlayDrawInput {
   readonly cubeSizeMeters: number;
   readonly cameraIntrinsics: CameraIntrinsics;
   readonly distortionCoefficients?: readonly number[];
+  readonly overlayDisplayMode?: OverlayDisplayMode;
 }
 
 const CUBE_EDGE_INDEX_PAIRS: ReadonlyArray<readonly [number, number]> = [
@@ -92,9 +98,7 @@ function drawMarkerOutlines(
   detectedMarkers: ReadonlyArray<DetectedMarkerCorners>,
 ): void {
   canvasContext.strokeStyle = MARKER_OUTLINE_STROKE_COLOR;
-  canvasContext.lineWidth = 2;
-  canvasContext.font = "14px sans-serif";
-  canvasContext.fillStyle = MARKER_OUTLINE_STROKE_COLOR;
+  canvasContext.lineWidth = MARKER_OUTLINE_STROKE_WIDTH_PX;
 
   for (const marker of detectedMarkers) {
     if (marker.corners.length !== 4) {
@@ -122,12 +126,6 @@ function drawMarkerOutlines(
 
     canvasContext.closePath();
     canvasContext.stroke();
-
-    const labelCorner = marker.corners[0];
-
-    if (labelCorner !== undefined) {
-      canvasContext.fillText(String(marker.id), labelCorner[0] + 4, labelCorner[1] - 4);
-    }
   }
 }
 
@@ -135,9 +133,10 @@ function drawProjectedLineSegments(
   canvasContext: CanvasRenderingContext2D,
   lineSegments: ReadonlyArray<ReadonlyArray<ImagePoint2D>>,
   strokeColor: string,
+  strokeWidthPixels: number,
 ): void {
   canvasContext.strokeStyle = strokeColor;
-  canvasContext.lineWidth = 2;
+  canvasContext.lineWidth = strokeWidthPixels;
 
   for (const segment of lineSegments) {
     const startPoint = segment[0];
@@ -158,7 +157,8 @@ function drawPoseAxes(
   canvasContext: CanvasRenderingContext2D,
   pose: Pose,
   cameraIntrinsics: CameraIntrinsics,
-  distortionCoefficients?: readonly number[],
+  distortionCoefficients: readonly number[] | undefined,
+  axisStrokeWidthPixels: number,
 ): void {
   const origin: ObjectPoint3D = [0, 0, 0];
   const axisX: ObjectPoint3D = [AXIS_LENGTH_CUBE_UNITS, 0, 0];
@@ -183,9 +183,32 @@ function drawPoseAxes(
     return;
   }
 
-  drawProjectedLineSegments(canvasContext, [[projectedOrigin, projectedAxisX]], AXIS_X_COLOR);
-  drawProjectedLineSegments(canvasContext, [[projectedOrigin, projectedAxisY]], AXIS_Y_COLOR);
-  drawProjectedLineSegments(canvasContext, [[projectedOrigin, projectedAxisZ]], AXIS_Z_COLOR);
+  drawProjectedLineSegments(
+    canvasContext,
+    [[projectedOrigin, projectedAxisX]],
+    AXIS_X_COLOR,
+    axisStrokeWidthPixels,
+  );
+  drawProjectedLineSegments(
+    canvasContext,
+    [[projectedOrigin, projectedAxisY]],
+    AXIS_Y_COLOR,
+    axisStrokeWidthPixels,
+  );
+  drawProjectedLineSegments(
+    canvasContext,
+    [[projectedOrigin, projectedAxisZ]],
+    AXIS_Z_COLOR,
+    axisStrokeWidthPixels,
+  );
+}
+
+function fillWireframeOnlyBackground(
+  canvasContext: CanvasRenderingContext2D,
+  overlayCanvas: HTMLCanvasElement,
+): void {
+  canvasContext.fillStyle = WIREFRAME_ONLY_VIEWPORT_BACKGROUND_COLOR;
+  canvasContext.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 }
 
 /** Draws the current frame, marker outlines, cube wireframe, and pose axes. */
@@ -196,9 +219,16 @@ export function drawOverlay(input: OverlayDrawInput): void {
     return;
   }
 
+  const overlayDisplayMode = input.overlayDisplayMode ?? "cameraWithOverlay";
+
   canvasContext.clearRect(0, 0, input.overlayCanvas.width, input.overlayCanvas.height);
-  canvasContext.drawImage(input.captureCanvas, 0, 0);
-  drawMarkerOutlines(canvasContext, input.detectedMarkers);
+
+  if (overlayDisplayMode === "wireframeOnly") {
+    fillWireframeOnlyBackground(canvasContext, input.overlayCanvas);
+  } else {
+    canvasContext.drawImage(input.captureCanvas, 0, 0);
+    drawMarkerOutlines(canvasContext, input.detectedMarkers);
+  }
 
   if (input.pose === null) {
     return;
@@ -210,12 +240,18 @@ export function drawOverlay(input: OverlayDrawInput): void {
     input.cameraIntrinsics,
     input.distortionCoefficients,
   );
-  drawProjectedLineSegments(canvasContext, wireframeSegments, CUBE_WIREFRAME_STROKE_COLOR);
+  drawProjectedLineSegments(
+    canvasContext,
+    wireframeSegments,
+    CUBE_WIREFRAME_STROKE_COLOR,
+    CUBE_WIREFRAME_STROKE_WIDTH_PX,
+  );
   drawPoseAxes(
     canvasContext,
     input.pose,
     input.cameraIntrinsics,
     input.distortionCoefficients,
+    POSE_AXIS_STROKE_WIDTH_PX,
   );
 }
 

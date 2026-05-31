@@ -6,6 +6,7 @@ import { QUATERNION_TOLERANCE } from "../../src/core/constants.js";
 import {
   alignQuaternionSignToPrevious,
   canonicalizeQuaternionSign,
+  computeQuaternionGeodesicAngleRadians,
   normalizeQuaternion,
   quaternionToRotationMatrix,
   rotationMatrixToQuaternion,
@@ -78,6 +79,15 @@ describe("quaternion conventions", () => {
       normalizeQuaternion(PREVIOUS_FRAME_QUATERNION)[0],
       QUATERNION_TOLERANCE,
     );
+  });
+
+  it("returns zero geodesic angle for equivalent opposite-sign orientations", () => {
+    const geodesicAngleRadians = computeQuaternionGeodesicAngleRadians(
+      PREVIOUS_FRAME_QUATERNION,
+      CURRENT_FRAME_OPPOSITE_SIGN_QUATERNION,
+    );
+
+    expect(geodesicAngleRadians).toBeLessThan(QUATERNION_TOLERANCE);
   });
 
   it("rejects zero-length quaternions", () => {

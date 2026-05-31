@@ -6,6 +6,7 @@ import {
   ANGLE_TOLERANCE_RADIANS,
   REPROJECTION_ERROR_TOLERANCE_PX,
 } from "../../src/core/constants.js";
+import { computeQuaternionGeodesicAngleRadians } from "../../src/core/quaternion.js";
 import { quaternionToRotationVector } from "../../src/core/rodrigues.js";
 import { estimateAprilCubePose } from "../../src/aprilcube/estimate-aprilcube-pose.js";
 import type { EstimateAprilCubePoseSuccess } from "../../src/aprilcube/types.js";
@@ -161,5 +162,38 @@ describe("estimateAprilCubePose integration", () => {
     }
 
     expect(result.poseMode).toBe("singleFacePlanar");
+  });
+
+  it("aligns success pose quaternion sign to previousPose for temporal continuity", () => {
+    const oppositeSignPreviousPose = {
+      rotation: [
+        -APRILCUBE_GROUND_TRUTH_POSE.rotation[0],
+        -APRILCUBE_GROUND_TRUTH_POSE.rotation[1],
+        -APRILCUBE_GROUND_TRUTH_POSE.rotation[2],
+        -APRILCUBE_GROUND_TRUTH_POSE.rotation[3],
+      ] as const,
+      translation: APRILCUBE_GROUND_TRUTH_POSE.translation,
+    };
+
+    const result = assertAprilCubePoseSuccess(
+      estimateAprilCubePose(
+        {
+          markers: createProjectedAprilCubeMarkers(TWO_FACE_APRILCUBE_CONFIG),
+          config: TWO_FACE_APRILCUBE_CONFIG,
+          cameraIntrinsics: CANONICAL_CAMERA_INTRINSICS,
+        },
+        {
+          enableRansac: false,
+          previousPose: oppositeSignPreviousPose,
+        },
+      ),
+    );
+
+    const geodesicAngleRadians = computeQuaternionGeodesicAngleRadians(
+      oppositeSignPreviousPose.rotation,
+      result.pose.rotation,
+    );
+
+    expect(geodesicAngleRadians).toBeLessThan(ANGLE_TOLERANCE_RADIANS);
   });
 });

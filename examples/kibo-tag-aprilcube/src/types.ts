@@ -130,3 +130,6 @@ export interface ReferenceCameraIntrinsics {
 
 /** UI corner order selection value. */
 export type CornerOrderSelection = AprilCubeCornerOrderName;
+
+/** Viewport overlay rendering mode. */
+export type OverlayDisplayMode = "cameraWithOverlay" | "wireframeOnly";

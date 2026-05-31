@@ -261,6 +261,7 @@ export function estimateMultiFaceAprilCubePose(
       undefined,
       undefined,
       [],
+      options.previousPose,
     );
   }
 
@@ -276,6 +277,7 @@ export function estimateMultiFaceAprilCubePose(
       undefined,
       undefined,
       outlierMarkerIds,
+      options.previousPose,
     );
   }
 
@@ -307,6 +309,7 @@ export function estimateMultiFaceAprilCubePose(
       undefined,
       undefined,
       outlierMarkerIds,
+      options.previousPose,
     );
   }
 

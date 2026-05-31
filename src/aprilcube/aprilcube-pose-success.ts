@@ -2,7 +2,8 @@
  * Builds AprilCube pose success payloads from core pose estimation results.
  */
 import { computeMeasurementConfidence } from "../pnp/confidence.js";
-import type { ImagePoint2D, ObjectPoint3D } from "../core/types.js";
+import { alignQuaternionSignToPrevious } from "../core/quaternion.js";
+import type { ImagePoint2D, ObjectPoint3D, Pose } from "../core/types.js";
 import { DEFAULT_RANSAC_REPROJECTION_ERROR_THRESHOLD_PX } from "../pnp/constants.js";
 import type { EstimatePoseSuccess } from "../pnp/estimate-pose-types.js";
 import { classifyCorrespondenceInliers } from "../pnp/inlier-classification.js";
@@ -82,6 +83,23 @@ function buildEstimatePoseSuccessFromClassification(
   };
 }
 
+function applyPreviousPoseRotationContinuity(
+  poseResult: EstimatePoseSuccess,
+  previousPose: Pose | undefined,
+): EstimatePoseSuccess {
+  if (previousPose === undefined) {
+    return poseResult;
+  }
+
+  return {
+    ...poseResult,
+    pose: {
+      rotation: alignQuaternionSignToPrevious(previousPose.rotation, poseResult.pose.rotation),
+      translation: poseResult.pose.translation,
+    },
+  };
+}
+
 /** Builds the public AprilCube success payload from a core pose result. */
 export function buildAprilCubePoseSuccess(
   poseResult: EstimatePoseSuccess,
@@ -94,23 +112,25 @@ export function buildAprilCubePoseSuccess(
   planarCandidateCount: number | undefined,
   planarAmbiguityScore: number | undefined,
   rejectedMarkerIds: ReadonlyArray<number>,
+  previousPose?: Pose,
 ): EstimateAprilCubePoseSuccess {
+  const continuousPoseResult = applyPreviousPoseRotationContinuity(poseResult, previousPose);
   const markerReprojectionDiagnostics = computeAprilCubeMarkerReprojectionDiagnostics(
     imagePoints,
     objectPoints,
     markerIds,
-    poseResult.pose,
+    continuousPoseResult.pose,
     input.cameraIntrinsics,
   );
 
   return {
-    ...poseResult,
+    ...continuousPoseResult,
     detectedMarkerCount: input.markers.length,
     correspondenceCount: imagePoints.length,
     correspondenceMarkerIds: markerIds,
     correspondenceCornerIndices: cornerIndices,
     outlierMarkerDiagnostics: buildOutlierMarkerDiagnostics(
-      poseResult.outlierIndices,
+      continuousPoseResult.outlierIndices,
       markerIds,
       cornerIndices,
     ),
@@ -199,5 +219,6 @@ export function buildPlanarAprilCubePoseSuccess(
     planarResult.candidates.length,
     planarResult.planarAmbiguityScore,
     [],
+    options.previousPose,
   );
 }

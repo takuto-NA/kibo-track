@@ -1,7 +1,7 @@
 /**
- * Lightweight pose tracker with previous-pose prior and exponential smoothing.
+ * Lightweight pose tracker with previous-pose prior and translation lerp plus rotation slerp.
  */
-import type { Pose } from "kibo-track";
+import { slerpQuaternion, type Pose } from "kibo-track";
 
 /** Tracker lifecycle states for diagnostics. */
 export type PoseTrackerState = "tracking" | "coasting" | "lost";
@@ -48,42 +48,9 @@ function blendTranslation(
   ];
 }
 
-function blendRotationQuaternion(
-  previousRotation: readonly [number, number, number, number],
-  measurementRotation: readonly [number, number, number, number],
-  smoothingAlpha: number,
-): readonly [number, number, number, number] {
-  const retainWeight = 1 - smoothingAlpha;
-
-  const blendedRotation: readonly [number, number, number, number] = [
-    retainWeight * previousRotation[0] + smoothingAlpha * measurementRotation[0],
-    retainWeight * previousRotation[1] + smoothingAlpha * measurementRotation[1],
-    retainWeight * previousRotation[2] + smoothingAlpha * measurementRotation[2],
-    retainWeight * previousRotation[3] + smoothingAlpha * measurementRotation[3],
-  ];
-
-  const length = Math.hypot(
-    blendedRotation[0],
-    blendedRotation[1],
-    blendedRotation[2],
-    blendedRotation[3],
-  );
-
-  if (length <= Number.EPSILON) {
-    return measurementRotation;
-  }
-
-  return [
-    blendedRotation[0] / length,
-    blendedRotation[1] / length,
-    blendedRotation[2] / length,
-    blendedRotation[3] / length,
-  ];
-}
-
 function smoothPose(previousPose: Pose, measurementPose: Pose): Pose {
   return {
-    rotation: blendRotationQuaternion(
+    rotation: slerpQuaternion(
       previousPose.rotation,
       measurementPose.rotation,
       POSE_TRACKER_SMOOTHING_ALPHA,

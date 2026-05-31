@@ -1,7 +1,7 @@
 /**
  * Integration tests for refinePoseLM behavior and diagnostics.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ANGLE_TOLERANCE_RADIANS,
   REPROJECTION_ERROR_TOLERANCE_PX,
@@ -10,6 +10,7 @@ import { quaternionToRotationVector } from "../../src/core/rodrigues.js";
 import { MINIMUM_REFINEMENT_CORRESPONDENCE_COUNT } from "../../src/pnp/constants.js";
 import { computeImprovementRatio } from "../../src/pnp/improvement-ratio.js";
 import { refinePoseLM } from "../../src/pnp/refine-pose-lm.js";
+import * as poseParametersModule from "../../src/pnp/pose-parameters.js";
 import type { RefinePoseLMSuccess } from "../../src/pnp/types.js";
 import { CANONICAL_CAMERA_INTRINSICS } from "../fixtures/canonical-camera-intrinsics.js";
 import {
@@ -80,6 +81,27 @@ describe("refinePoseLM validation", () => {
     if (!result.success) {
       expect(result.reason).toBe("invalidInput");
     }
+  });
+
+  it("returns degenerateConfiguration when the optimized pose cannot project all points", () => {
+    vi.spyOn(poseParametersModule, "parameterVectorToPose").mockReturnValue({
+      rotation: [0, 0, 0, 1],
+      translation: [0, 0, -0.5],
+    });
+
+    const result = refinePoseLM({
+      imagePoints: projectGroundTruthImagePoints(),
+      objectPoints: WELL_SPREAD_OBJECT_POINTS,
+      cameraIntrinsics: CANONICAL_CAMERA_INTRINSICS,
+      initialPose: createTranslationPerturbedInitialPose(),
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.reason).toBe("degenerateConfiguration");
+    }
+
+    vi.restoreAllMocks();
   });
 });
 

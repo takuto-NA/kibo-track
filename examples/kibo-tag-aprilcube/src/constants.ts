@@ -47,6 +47,18 @@ export const PLACEHOLDER_PRINCIPAL_POINT_Y_PIXELS = 360;
 /** Cube wireframe edge color. */
 export const CUBE_WIREFRAME_STROKE_COLOR = "#00ff88";
 
+/** Cube wireframe stroke width in pixels. */
+export const CUBE_WIREFRAME_STROKE_WIDTH_PX = 4;
+
+/** Pose axis stroke width in pixels. */
+export const POSE_AXIS_STROKE_WIDTH_PX = 3;
+
+/** Marker outline stroke width in pixels. */
+export const MARKER_OUTLINE_STROKE_WIDTH_PX = 2;
+
+/** Viewport background when the camera feed is hidden. */
+export const WIREFRAME_ONLY_VIEWPORT_BACKGROUND_COLOR = "#000000";
+
 /** Marker outline stroke color. */
 export const MARKER_OUTLINE_STROKE_COLOR = "#ffcc00";
 

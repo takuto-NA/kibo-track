@@ -45,6 +45,18 @@ header h1 {
   font-size: 0.85rem;
 }
 
+.overlay-mode-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+#viewport.viewport-wireframe-only {
+  background: #000;
+}
+
 #calibration-status {
   width: 100%;
   margin: 0;
@@ -61,24 +73,13 @@ button:disabled {
   opacity: 0.5;
 }
 
-#status-panel p {
-  margin: 0.25rem 0;
-}
-
-#diagnostics-panel pre {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  padding: 0.75rem;
-  overflow-x: auto;
-  white-space: pre-wrap;
-}
-
 #viewport {
   position: relative;
   width: min(100%, 960px);
   aspect-ratio: 16 / 9;
   background: #000;
   border: 1px solid #333;
+  margin-bottom: 1rem;
 }
 
 #capture-canvas,
@@ -95,4 +96,45 @@ button:disabled {
 
 #overlay-canvas {
   pointer-events: none;
+}
+
+#detection-results-panel {
+  width: min(100%, 960px);
+  margin-bottom: 1rem;
+}
+
+#detection-results-panel h2,
+#diagnostics-panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+#detection-results-panel pre {
+  margin: 0;
+  min-height: 7.5rem;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  padding: 0.75rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, monospace;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+#status-panel p {
+  margin: 0.25rem 0;
+}
+
+#diagnostics-panel pre {
+  height: 14rem;
+  margin: 0;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  padding: 0.75rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
 }

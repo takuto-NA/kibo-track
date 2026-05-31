@@ -19,7 +19,8 @@ import {
   initializeKiboTagDetector,
   type KiboTagApriltagInstance,
 } from "./kibo-tag-detector.js";
-import { drawOverlay } from "./overlay.js";
+import { drawOverlay, type OverlayDrawInput } from "./overlay.js";
+import { formatPoseDisplayLines } from "./format-pose-display.js";
 import { undistortDetectedMarkers } from "./camera-distortion.js";
 import { parseCalibrationJson } from "./parse-calibration-json.js";
 import { PoseTracker } from "./pose-tracker.js";
@@ -33,7 +34,7 @@ import {
   synchronizeOverlayCanvasSize,
   validateResolutionConsistency,
 } from "./resolution-gate.js";
-import type { AppLifecycleState, CornerOrderSelection, ResolutionSnapshot } from "./types.js";
+import type { AppLifecycleState, CornerOrderSelection, OverlayDisplayMode, ResolutionSnapshot } from "./types.js";
 
 interface AppDomElements {
   readonly startCameraButton: HTMLButtonElement;
@@ -49,6 +50,9 @@ interface AppDomElements {
   readonly detectorStatusElement: HTMLElement;
   readonly poseStatusElement: HTMLElement;
   readonly diagnosticsTextElement: HTMLElement;
+  readonly detectionResultsTextElement: HTMLElement;
+  readonly wireframeOnlyCheckbox: HTMLInputElement;
+  readonly viewportElement: HTMLElement;
   readonly videoElement: HTMLVideoElement;
   readonly captureCanvas: HTMLCanvasElement;
   readonly overlayCanvas: HTMLCanvasElement;
@@ -68,6 +72,7 @@ interface AppRuntimeState {
   animationFrameIdentifier: number | null;
   isProcessingTrackingFrame: boolean;
   poseTracker: PoseTracker;
+  overlayDisplayMode: OverlayDisplayMode;
 }
 
 function readDomElements(): AppDomElements {
@@ -84,6 +89,9 @@ function readDomElements(): AppDomElements {
   const detectorStatusElement = document.querySelector<HTMLElement>("#detector-status");
   const poseStatusElement = document.querySelector<HTMLElement>("#pose-status");
   const diagnosticsTextElement = document.querySelector<HTMLElement>("#diagnostics-text");
+  const detectionResultsTextElement = document.querySelector<HTMLElement>("#detection-results-text");
+  const wireframeOnlyCheckbox = document.querySelector<HTMLInputElement>("#wireframe-only-checkbox");
+  const viewportElement = document.querySelector<HTMLElement>("#viewport");
   const videoElement = document.querySelector<HTMLVideoElement>("#camera-video");
   const captureCanvas = document.querySelector<HTMLCanvasElement>("#capture-canvas");
   const overlayCanvas = document.querySelector<HTMLCanvasElement>("#overlay-canvas");
@@ -102,6 +110,9 @@ function readDomElements(): AppDomElements {
     detectorStatusElement === null ||
     poseStatusElement === null ||
     diagnosticsTextElement === null ||
+    detectionResultsTextElement === null ||
+    wireframeOnlyCheckbox === null ||
+    viewportElement === null ||
     videoElement === null ||
     captureCanvas === null ||
     overlayCanvas === null
@@ -123,6 +134,9 @@ function readDomElements(): AppDomElements {
     detectorStatusElement,
     poseStatusElement,
     diagnosticsTextElement,
+    detectionResultsTextElement,
+    wireframeOnlyCheckbox,
+    viewportElement,
     videoElement,
     captureCanvas,
     overlayCanvas,
@@ -146,6 +160,7 @@ function createInitialRuntimeState(): AppRuntimeState {
     animationFrameIdentifier: null,
     isProcessingTrackingFrame: false,
     poseTracker: new PoseTracker(),
+    overlayDisplayMode: "cameraWithOverlay",
   };
 }
 
@@ -166,6 +181,67 @@ function readSelectedCornerOrder(cornerOrderSelect: HTMLSelectElement): CornerOr
   return "reversedCanonical";
 }
 
+function readOverlayDisplayMode(wireframeOnlyCheckbox: HTMLInputElement): OverlayDisplayMode {
+  if (wireframeOnlyCheckbox.checked) {
+    return "wireframeOnly";
+  }
+
+  return "cameraWithOverlay";
+}
+
+function syncViewportOverlayDisplayMode(
+  viewportElement: HTMLElement,
+  overlayDisplayMode: OverlayDisplayMode,
+): void {
+  viewportElement.classList.toggle(
+    "viewport-wireframe-only",
+    overlayDisplayMode === "wireframeOnly",
+  );
+}
+
+function buildOverlayDrawInput(
+  domElements: AppDomElements,
+  state: AppRuntimeState,
+  detectedMarkers: ReadonlyArray<DetectedMarkerCorners>,
+  pose: Pose | null,
+  cubeSizeMeters: number,
+): OverlayDrawInput {
+  state.overlayDisplayMode = readOverlayDisplayMode(domElements.wireframeOnlyCheckbox);
+  syncViewportOverlayDisplayMode(domElements.viewportElement, state.overlayDisplayMode);
+
+  return {
+    overlayCanvas: domElements.overlayCanvas,
+    captureCanvas: domElements.captureCanvas,
+    detectedMarkers,
+    pose,
+    cubeSizeMeters,
+    cameraIntrinsics: state.scaledCameraIntrinsics!,
+    distortionCoefficients: state.distortionCoefficients,
+    overlayDisplayMode: state.overlayDisplayMode,
+  };
+}
+
+function redrawCurrentOverlayFrame(domElements: AppDomElements, state: AppRuntimeState): void {
+  if (state.scaledCameraIntrinsics === null) {
+    return;
+  }
+
+  const aprilCubeConfig = buildAprilCubeConfigFromLayoutJson(
+    EXAMPLE_APRILCUBE_LAYOUT_JSON,
+    readSelectedCornerOrder(domElements.cornerOrderSelect),
+  );
+
+  drawOverlay(
+    buildOverlayDrawInput(
+      domElements,
+      state,
+      state.detectedMarkers,
+      state.trackedPose,
+      aprilCubeConfig.cubeSize,
+    ),
+  );
+}
+
 function formatDiagnostics(state: AppRuntimeState): string {
   const trackerSnapshot = state.poseTracker.getSnapshot();
   const lines = [
@@ -176,6 +252,7 @@ function formatDiagnostics(state: AppRuntimeState): string {
     `trackerState: ${trackerSnapshot.trackerState}`,
     `coastFrameCount: ${trackerSnapshot.coastFrameCount}`,
     `detectedMarkerCount: ${state.detectedMarkers.length}`,
+    `overlayDisplayMode: ${state.overlayDisplayMode}`,
   ];
 
   if (state.resolutionSnapshot !== null) {
@@ -237,6 +314,37 @@ function formatDiagnostics(state: AppRuntimeState): string {
   return lines.join("\n");
 }
 
+function formatDetectionResults(state: AppRuntimeState): string {
+  if (state.detectedMarkers.length === 0) {
+    return "Detected markers: none";
+  }
+
+  const detectedMarkerIds = state.detectedMarkers.map((marker) => marker.id).join(", ");
+  const lines = [`Detected markers: ${detectedMarkerIds}`];
+
+  if (state.latestPoseResult === null) {
+    return lines.join("\n");
+  }
+
+  if (state.latestPoseResult.success) {
+    lines.push(
+      `Measured: ${state.latestPoseResult.poseMode} · ${state.latestPoseResult.finalMeanReprojectionErrorPx.toFixed(2)} px`,
+    );
+
+    const displayPose = state.trackedPose ?? state.latestPoseResult.pose;
+    lines.push(...formatPoseDisplayLines(displayPose));
+
+    if (state.latestPoseResult.rejectedMarkerIds.length > 0) {
+      lines.push(`Rejected markers: ${state.latestPoseResult.rejectedMarkerIds.join(", ")}`);
+    }
+
+    return lines.join("\n");
+  }
+
+  lines.push(`Pose: failed (${state.latestPoseResult.stage}: ${state.latestPoseResult.reason})`);
+  return lines.join("\n");
+}
+
 function updateUi(
   domElements: AppDomElements,
   state: AppRuntimeState,
@@ -251,6 +359,7 @@ function updateUi(
   domElements.detectorStatusElement.textContent = detectorMessage;
   domElements.poseStatusElement.textContent = poseMessage;
   domElements.diagnosticsTextElement.textContent = formatDiagnostics(state);
+  domElements.detectionResultsTextElement.textContent = formatDetectionResults(state);
   domElements.startDetectorButton.disabled = state.lifecycleState !== "resolutionReady";
   domElements.calibrationStatusElement.textContent = `calibration: ${state.intrinsicsSource}`;
 }
@@ -330,15 +439,15 @@ async function handleStartCamera(
     "reversedCanonical",
   );
 
-  drawOverlay({
-    overlayCanvas: domElements.overlayCanvas,
-    captureCanvas: domElements.captureCanvas,
-    detectedMarkers: [],
-    pose: null,
-    cubeSizeMeters: aprilCubeConfig.cubeSize,
-    cameraIntrinsics: resolutionResult.scaledCameraIntrinsics,
-    distortionCoefficients: state.distortionCoefficients,
-  });
+  drawOverlay(
+    buildOverlayDrawInput(
+      domElements,
+      state,
+      [],
+      null,
+      aprilCubeConfig.cubeSize,
+    ),
+  );
 
   updateUi(
     domElements,
@@ -405,15 +514,15 @@ async function runTrackingFrame(
     state.trackedPose = missedFrameUpdate.trackedPose;
     state.latestPoseResult = null;
 
-    drawOverlay({
-      overlayCanvas: domElements.overlayCanvas,
-      captureCanvas: domElements.captureCanvas,
-      detectedMarkers: [],
-      pose: missedFrameUpdate.trackedPose,
-      cubeSizeMeters: aprilCubeConfig.cubeSize,
-      cameraIntrinsics: state.scaledCameraIntrinsics,
-      distortionCoefficients: state.distortionCoefficients,
-    });
+    drawOverlay(
+      buildOverlayDrawInput(
+        domElements,
+        state,
+        [],
+        missedFrameUpdate.trackedPose,
+        aprilCubeConfig.cubeSize,
+      ),
+    );
 
     updateUi(
       domElements,
@@ -463,15 +572,15 @@ async function runTrackingFrame(
     poseMessage = `${state.latestPoseResult.stage}:${state.latestPoseResult.reason}`;
   }
 
-  drawOverlay({
-    overlayCanvas: domElements.overlayCanvas,
-    captureCanvas: domElements.captureCanvas,
-    detectedMarkers: state.detectedMarkers,
-    pose: overlayPose,
-    cubeSizeMeters: aprilCubeConfig.cubeSize,
-    cameraIntrinsics: state.scaledCameraIntrinsics,
-    distortionCoefficients: state.distortionCoefficients,
-  });
+  drawOverlay(
+    buildOverlayDrawInput(
+      domElements,
+      state,
+      state.detectedMarkers,
+      overlayPose,
+      aprilCubeConfig.cubeSize,
+    ),
+  );
 
   updateUi(
     domElements,
@@ -601,6 +710,18 @@ function bindApplication(): void {
 
   domElements.clearCalibrationButton.addEventListener("click", () => {
     handleClearCalibration(domElements, state);
+  });
+
+  domElements.wireframeOnlyCheckbox.addEventListener("change", () => {
+    redrawCurrentOverlayFrame(domElements, state);
+    updateUi(
+      domElements,
+      state,
+      domElements.cameraStatusElement.textContent ?? "not started",
+      domElements.resolutionStatusElement.textContent ?? "not checked",
+      domElements.detectorStatusElement.textContent ?? "not started",
+      domElements.poseStatusElement.textContent ?? "not estimated",
+    );
   });
 
   window.addEventListener("pagehide", () => {

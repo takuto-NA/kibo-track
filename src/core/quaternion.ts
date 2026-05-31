@@ -179,6 +179,42 @@ export function rotationMatrixToQuaternion(
   return canonicalizeQuaternionSign(normalizeQuaternion(quaternion));
 }
 
+function computeNormalizedQuaternionDotProduct(
+  leftQuaternion: Quaternion,
+  rightQuaternion: Quaternion,
+): number {
+  return (
+    leftQuaternion[0] * rightQuaternion[0] +
+    leftQuaternion[1] * rightQuaternion[1] +
+    leftQuaternion[2] * rightQuaternion[2] +
+    leftQuaternion[3] * rightQuaternion[3]
+  );
+}
+
+/** Returns the shortest rotation angle in radians between two quaternion orientations. */
+export function computeQuaternionGeodesicAngleRadians(
+  startQuaternion: Quaternion,
+  endQuaternion: Quaternion,
+): number {
+  const normalizedStartQuaternion = normalizeQuaternion(startQuaternion);
+  const alignedEndQuaternion = alignQuaternionSignToPrevious(
+    normalizedStartQuaternion,
+    endQuaternion,
+  );
+  const normalizedEndQuaternion = normalizeQuaternion(alignedEndQuaternion);
+  const clampedAbsoluteDotProduct = Math.min(
+    1,
+    Math.abs(
+      computeNormalizedQuaternionDotProduct(
+        normalizedStartQuaternion,
+        normalizedEndQuaternion,
+      ),
+    ),
+  );
+
+  return 2 * Math.acos(clampedAbsoluteDotProduct);
+}
+
 /** Spherical linear interpolation between two quaternions. */
 export function slerpQuaternion(
   startQuaternion: Quaternion,
@@ -196,13 +232,16 @@ export function slerpQuaternion(
   const normalizedStartQuaternion = normalizeQuaternion(startQuaternion);
   const normalizedEndQuaternion = normalizeQuaternion(alignedEndQuaternion);
 
-  const dotProduct =
-    normalizedStartQuaternion[0] * normalizedEndQuaternion[0] +
-    normalizedStartQuaternion[1] * normalizedEndQuaternion[1] +
-    normalizedStartQuaternion[2] * normalizedEndQuaternion[2] +
-    normalizedStartQuaternion[3] * normalizedEndQuaternion[3];
-
-  const clampedDotProduct = Math.min(1, Math.max(-1, dotProduct));
+  const clampedDotProduct = Math.min(
+    1,
+    Math.max(
+      -1,
+      computeNormalizedQuaternionDotProduct(
+        normalizedStartQuaternion,
+        normalizedEndQuaternion,
+      ),
+    ),
+  );
   const angleBetween = Math.acos(clampedDotProduct);
 
   if (angleBetween <= QUATERNION_TOLERANCE) {

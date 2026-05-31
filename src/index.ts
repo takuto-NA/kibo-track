@@ -25,6 +25,7 @@ export {
 export {
   alignQuaternionSignToPrevious,
   canonicalizeQuaternionSign,
+  computeQuaternionGeodesicAngleRadians,
   normalizeQuaternion,
   quaternionToRotationMatrix,
   rotationMatrixToQuaternion,

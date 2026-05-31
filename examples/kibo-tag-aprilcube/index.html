@@ -40,7 +40,22 @@
         </label>
         <button id="apply-calibration-button" type="button">Apply Calibration</button>
         <button id="clear-calibration-button" type="button">Clear Calibration</button>
+        <label class="overlay-mode-label">
+          <input id="wireframe-only-checkbox" type="checkbox" data-testid="wireframe-only-checkbox" />
+          Wireframe only (hide camera)
+        </label>
         <p id="calibration-status" data-testid="calibration-status">calibration: not loaded</p>
+      </section>
+
+      <section id="viewport">
+        <video id="camera-video" autoplay playsinline muted hidden></video>
+        <canvas id="capture-canvas" data-testid="capture-canvas"></canvas>
+        <canvas id="overlay-canvas" data-testid="overlay-canvas"></canvas>
+      </section>
+
+      <section id="detection-results-panel" data-testid="detection-results-panel">
+        <h2>Detection</h2>
+        <pre id="detection-results-text" data-testid="detection-results-text">Detected markers: —</pre>
       </section>
 
       <section id="status-panel" data-testid="status-panel">
@@ -54,12 +69,6 @@
       <section id="diagnostics-panel" data-testid="diagnostics-panel">
         <h2>Diagnostics</h2>
         <pre id="diagnostics-text" data-testid="diagnostics-text">Waiting to start...</pre>
-      </section>
-
-      <section id="viewport">
-        <video id="camera-video" autoplay playsinline muted hidden></video>
-        <canvas id="capture-canvas" data-testid="capture-canvas"></canvas>
-        <canvas id="overlay-canvas" data-testid="overlay-canvas"></canvas>
       </section>
     </main>
 

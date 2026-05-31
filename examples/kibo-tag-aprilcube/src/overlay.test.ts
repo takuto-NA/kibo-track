@@ -2,7 +2,11 @@
  * Unit tests for overlay projection helpers.
  */
 import { describe, expect, it } from "vitest";
-import { buildCubeCornerVertices, projectCubeWireframe, projectFrontFaceCornersForPose } from "./overlay.js";
+import {
+  buildCubeCornerVertices,
+  projectCubeWireframe,
+  projectFrontFaceCornersForPose,
+} from "./overlay.js";
 
 describe("overlay projection", () => {
   it("builds eight cube corner vertices", () => {

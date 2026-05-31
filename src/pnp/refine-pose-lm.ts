@@ -21,7 +21,6 @@ import type {
   RefinePoseLMInput,
   RefinePoseLMOptions,
   RefinePoseLMResult,
-  RefinePoseLMSuccess,
 } from "./types.js";
 import { validateRefinePoseLMInput } from "./validate-refine-input.js";
 
@@ -39,32 +38,44 @@ function resolveLevenbergMarquardtOptions(
   };
 }
 
-function computeReprojectionSummaryForPose(
+function tryComputeReprojectionSummaryForPose(
   input: RefinePoseLMInput,
   pose: Pose,
-): ReprojectionErrorSummary {
-  const projectedImagePoints = projectPoints(
-    input.objectPoints,
-    pose,
-    input.cameraIntrinsics,
-  );
+): ReprojectionErrorSummary | null {
+  try {
+    const projectedImagePoints = projectPoints(
+      input.objectPoints,
+      pose,
+      input.cameraIntrinsics,
+    );
 
-  return reprojectionError(input.imagePoints, projectedImagePoints);
+    return reprojectionError(input.imagePoints, projectedImagePoints);
+  } catch {
+    // Guard: LM trial poses and the final pose may place points behind the camera.
+    return null;
+  }
 }
 
-function buildRefinePoseLMSuccess(
+function buildRefinePoseLMResult(
   input: RefinePoseLMInput,
   optimizedParameters: Float64Array,
   iterations: number,
   converged: boolean,
   finalResidualNorm: number,
-): RefinePoseLMSuccess {
+): RefinePoseLMResult {
   const refinedPose = parameterVectorToPose(optimizedParameters);
-  const initialReprojectionError = computeReprojectionSummaryForPose(
+  const initialReprojectionError = tryComputeReprojectionSummaryForPose(
     input,
     input.initialPose,
   );
-  const finalReprojectionError = computeReprojectionSummaryForPose(input, refinedPose);
+  const finalReprojectionError = tryComputeReprojectionSummaryForPose(input, refinedPose);
+
+  if (initialReprojectionError === null || finalReprojectionError === null) {
+    return {
+      success: false,
+      reason: "degenerateConfiguration",
+    };
+  }
 
   const initialMeanReprojectionErrorPx = initialReprojectionError.meanErrorPx;
   const finalMeanReprojectionErrorPx = finalReprojectionError.meanErrorPx;
@@ -112,7 +123,7 @@ export function refinePoseLM(
     resolveLevenbergMarquardtOptions(options),
   );
 
-  return buildRefinePoseLMSuccess(
+  return buildRefinePoseLMResult(
     input,
     optimizationResult.finalParameters,
     optimizationResult.iterations,
