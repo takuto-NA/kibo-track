@@ -1,5 +1,5 @@
 {
-  "description": "Single-face without prior should report planarAmbiguous.",
+  "description": "Single-face without prior should resolve when homography decomposition is stable.",
   "expectedResult": {
     "success": true,
     "poseMode": "singleFacePlanar"

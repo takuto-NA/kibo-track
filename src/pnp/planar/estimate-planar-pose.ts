@@ -21,6 +21,9 @@ import type {
 /** Minimum reprojection gap (px) required to accept a cold-start single candidate. */
 const MINIMUM_PLANAR_AMBIGUITY_RESOLUTION_PX = 0.25;
 
+/** Pose-distance score below which duplicated homography candidates are equivalent. */
+const DUPLICATE_PLANAR_CANDIDATE_POSE_DISTANCE = 1e-4;
+
 function refinePlanarCandidate(
   input: EstimatePlanarPoseInput,
   initialPose: Pose,
@@ -60,6 +63,30 @@ function sortCandidatesByReprojectionError(
   );
 }
 
+function appendUniquePlanarCandidate(
+  refinedCandidates: PlanarPoseCandidate[],
+  refinedCandidate: PlanarPoseCandidate,
+): void {
+  const duplicateCandidate = refinedCandidates.find(
+    (existingCandidate) =>
+      computePoseDistanceScore(existingCandidate.pose, refinedCandidate.pose) <=
+      DUPLICATE_PLANAR_CANDIDATE_POSE_DISTANCE,
+  );
+
+  if (duplicateCandidate === undefined) {
+    refinedCandidates.push(refinedCandidate);
+    return;
+  }
+
+  if (
+    refinedCandidate.finalMeanReprojectionErrorPx <
+    duplicateCandidate.finalMeanReprojectionErrorPx
+  ) {
+    const duplicateCandidateIndex = refinedCandidates.indexOf(duplicateCandidate);
+    refinedCandidates[duplicateCandidateIndex] = refinedCandidate;
+  }
+}
+
 function selectCandidateWithPreviousPose(
   refinedCandidates: ReadonlyArray<PlanarPoseCandidate>,
   previousPose: Pose,
@@ -94,33 +121,6 @@ export function estimatePlanarPose(
     return {
       success: false,
       reason: "notEnoughPoints",
-    };
-  }
-
-  if (options.previousPose !== undefined) {
-    const priorRefinement = refinePlanarCandidate(
-      input,
-      options.previousPose,
-      options.maxRefinementIterations,
-    );
-
-    if (priorRefinement === null) {
-      return {
-        success: false,
-        reason: "degenerateConfiguration",
-      };
-    }
-
-    return {
-      success: true,
-      pose: priorRefinement.pose,
-      candidates: [priorRefinement],
-      selectedCandidateIndex: 0,
-      planarAmbiguityScore: Number.POSITIVE_INFINITY,
-      meanReprojectionErrorPx: priorRefinement.finalMeanReprojectionErrorPx,
-      initialMeanReprojectionErrorPx: priorRefinement.initialMeanReprojectionErrorPx,
-      finalMeanReprojectionErrorPx: priorRefinement.finalMeanReprojectionErrorPx,
-      iterations: priorRefinement.iterations,
     };
   }
 
@@ -177,7 +177,19 @@ export function estimatePlanarPose(
     );
 
     if (refinedCandidate !== null) {
-      refinedCandidates.push(refinedCandidate);
+      appendUniquePlanarCandidate(refinedCandidates, refinedCandidate);
+    }
+  }
+
+  if (options.previousPose !== undefined) {
+    const priorRefinement = refinePlanarCandidate(
+      input,
+      options.previousPose,
+      options.maxRefinementIterations,
+    );
+
+    if (priorRefinement !== null) {
+      appendUniquePlanarCandidate(refinedCandidates, priorRefinement);
     }
   }
 
@@ -204,7 +216,7 @@ export function estimatePlanarPose(
     secondBestCandidate?.finalMeanReprojectionErrorPx ?? null,
   );
 
-  if (sortedCandidates.length === 1) {
+  if (sortedCandidates.length === 1 && options.previousPose === undefined) {
     return {
       success: true,
       pose: bestCandidate.pose,

@@ -1,11 +1,30 @@
 /**
  * Direct linear transform homography estimation for planar correspondences.
  */
-import { Matrix, SingularValueDecomposition } from "ml-matrix";
+import { EigenvalueDecomposition, Matrix } from "ml-matrix";
 import type { HomographyMatrix3x3 } from "./types.js";
 
 const HOMOGRAPHY_MATRIX_ELEMENT_COUNT = 9;
 const HOMOGRAPHY_NORMALIZATION_INDEX = 8;
+
+function selectSmallestEigenvalueIndex(eigenvalues: ReadonlyArray<number>): number {
+  let smallestEigenvalueIndex = 0;
+
+  for (let eigenvalueIndex = 1; eigenvalueIndex < eigenvalues.length; eigenvalueIndex += 1) {
+    const eigenvalue = eigenvalues[eigenvalueIndex];
+    const currentSmallestEigenvalue = eigenvalues[smallestEigenvalueIndex];
+
+    if (
+      eigenvalue !== undefined &&
+      currentSmallestEigenvalue !== undefined &&
+      eigenvalue < currentSmallestEigenvalue
+    ) {
+      smallestEigenvalueIndex = eigenvalueIndex;
+    }
+  }
+
+  return smallestEigenvalueIndex;
+}
 
 function buildHomographyDesignRow(
   planeCoordinateU: number,
@@ -79,11 +98,12 @@ export function estimateHomographyFromCorrespondences(
   }
 
   const designMatrix = new Matrix(designRows);
-  const singularValueDecomposition = new SingularValueDecomposition(designMatrix, {
-    autoTranspose: true,
+  const normalMatrix = designMatrix.transpose().mmul(designMatrix);
+  const eigenvalueDecomposition = new EigenvalueDecomposition(normalMatrix, {
+    assumeSymmetric: true,
   });
-  const homographyVector = singularValueDecomposition.rightSingularVectors.getColumn(
-    singularValueDecomposition.rightSingularVectors.columns - 1,
+  const homographyVector = eigenvalueDecomposition.eigenvectorMatrix.getColumn(
+    selectSmallestEigenvalueIndex(eigenvalueDecomposition.realEigenvalues),
   );
   const normalizationValue = homographyVector[HOMOGRAPHY_NORMALIZATION_INDEX] ?? 1;
 

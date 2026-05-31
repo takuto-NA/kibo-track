@@ -43,6 +43,8 @@ describe("AprilCube python parity fixtures", () => {
     expect(result.success).toBe(fixture.expectedResult.success);
 
     if (!result.success) {
+      expect(result.stage).toBe(fixture.expectedResult.stage);
+      expect(result.reason).toBe(fixture.expectedResult.reason);
       return;
     }
 

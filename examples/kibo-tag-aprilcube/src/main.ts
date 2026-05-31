@@ -705,6 +705,8 @@ async function runTrackingFrame(
       pose: state.latestPoseResult.pose,
       finalMeanReprojectionErrorPx: state.latestPoseResult.finalMeanReprojectionErrorPx,
       detectedMarkerCount: state.detectedMarkers.length,
+      poseMode: state.latestPoseResult.poseMode,
+      visibleFaceCount: state.latestPoseResult.visibleFaceCount,
     });
     state.trackedPose = trackerUpdate.trackedPose;
     overlayPose = trackerUpdate.trackedPose;

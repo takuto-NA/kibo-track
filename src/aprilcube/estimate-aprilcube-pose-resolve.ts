@@ -59,6 +59,7 @@ function estimatePoseFromSingleMarkerPlanarSeeds(
         cameraIntrinsics: input.cameraIntrinsics,
       },
       {
+        previousPose: options.previousPose,
         maxRefinementIterations: options.maxRefinementIterations,
       },
     );
@@ -128,6 +129,7 @@ function estimateBestSingleMarkerFallback(
         cameraIntrinsics: input.cameraIntrinsics,
       },
       {
+        previousPose: options.previousPose,
         maxRefinementIterations: options.maxRefinementIterations,
       },
     );
@@ -140,6 +142,7 @@ function estimateBestSingleMarkerFallback(
       planarResult,
       input,
       selectedCorrespondences.markerIds,
+      options.previousPose,
     );
 
     if (cameraFacingPlanarResult === null) {

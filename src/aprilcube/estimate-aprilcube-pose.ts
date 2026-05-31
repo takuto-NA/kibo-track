@@ -13,6 +13,22 @@ import type {
   EstimateAprilCubePoseResult,
 } from "./types.js";
 
+/** Single-face planar poses above this residual are too weak for AprilCube overlay. */
+const DEFAULT_SINGLE_FACE_PLANAR_MAX_REPROJECTION_ERROR_PX = 2;
+
+function countUniqueMarkerIds(markerIds: ReadonlyArray<number>): number {
+  return new Set(markerIds).size;
+}
+
+function resolveSingleFacePlanarMaxReprojectionErrorPx(
+  options: EstimateAprilCubePoseOptions,
+): number {
+  return (
+    options.reprojectionErrorThresholdPx ??
+    DEFAULT_SINGLE_FACE_PLANAR_MAX_REPROJECTION_ERROR_PX
+  );
+}
+
 /** Estimates cameraFromObject pose from detected AprilCube marker corners. */
 export function estimateAprilCubePose(
   input: EstimateAprilCubePoseInput,
@@ -68,6 +84,7 @@ export function estimateAprilCubePose(
       planarResult,
       input,
       markerIds,
+      options.previousPose,
     );
 
     if (cameraFacingPlanarResult === null) {
@@ -75,6 +92,18 @@ export function estimateAprilCubePose(
         success: false,
         stage: "poseEstimation",
         reason: "planarAmbiguous",
+      };
+    }
+
+    if (
+      countUniqueMarkerIds(markerIds) === 1 &&
+      cameraFacingPlanarResult.finalMeanReprojectionErrorPx >
+        resolveSingleFacePlanarMaxReprojectionErrorPx(options)
+    ) {
+      return {
+        success: false,
+        stage: "poseEstimation",
+        reason: "reprojectionErrorTooHigh",
       };
     }
 

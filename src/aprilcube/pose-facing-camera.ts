@@ -3,11 +3,16 @@
  */
 import { quaternionToRotationMatrix } from "../core/quaternion.js";
 import type { ObjectPoint3D, Pose } from "../core/types.js";
+import { computePoseDistanceScore } from "../pnp/planar/pose-distance.js";
 import { estimatePlanarPose } from "../pnp/planar/estimate-planar-pose.js";
 import type { AprilCubeFaceName, EstimateAprilCubePoseInput } from "./types.js";
 import { getUniqueMarkerIds } from "./correspondence-by-marker.js";
 
+/** Face normals with camera-space Z above this value are treated as pointing away. */
 const CAMERA_FACING_NORMAL_Z_MAXIMUM = 0;
+
+/** Prefer best reprojection over temporal prior when px gap exceeds this value. */
+const PRIOR_POSE_REPROJECTION_PREFERENCE_GAP_PX = 0.25;
 
 const FACE_NAME_TO_OBJECT_NORMAL: Readonly<Record<AprilCubeFaceName, ObjectPoint3D>> = {
   right: [1, 0, 0],
@@ -58,14 +63,72 @@ export function isPoseFacingCameraForMarkers(
   return true;
 }
 
-/** Picks the first planar candidate whose face normals face the camera. */
+function selectBestCameraFacingCandidateIndex(
+  planarResult: Extract<ReturnType<typeof estimatePlanarPose>, { success: true }>,
+  input: EstimateAprilCubePoseInput,
+  markerIds: ReadonlyArray<number>,
+  previousPose: Pose | undefined,
+): number {
+  const cameraFacingCandidates = planarResult.candidates
+    .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
+    .filter(({ candidate }) =>
+      isPoseFacingCameraForMarkers(input, markerIds, candidate.pose),
+    )
+    .sort(
+      (leftEntry, rightEntry) =>
+        leftEntry.candidate.finalMeanReprojectionErrorPx -
+        rightEntry.candidate.finalMeanReprojectionErrorPx,
+    );
+
+  if (cameraFacingCandidates.length === 0) {
+    return -1;
+  }
+
+  const bestReprojectionCandidate = cameraFacingCandidates[0];
+
+  if (bestReprojectionCandidate === undefined) {
+    return -1;
+  }
+
+  if (previousPose === undefined) {
+    return bestReprojectionCandidate.candidateIndex;
+  }
+
+  const reprojectionGapPx =
+    cameraFacingCandidates[cameraFacingCandidates.length - 1]!.candidate.finalMeanReprojectionErrorPx -
+    bestReprojectionCandidate.candidate.finalMeanReprojectionErrorPx;
+
+  if (reprojectionGapPx > PRIOR_POSE_REPROJECTION_PREFERENCE_GAP_PX) {
+    return bestReprojectionCandidate.candidateIndex;
+  }
+
+  let bestCandidateIndex = bestReprojectionCandidate.candidateIndex;
+  let bestPoseDistanceScore = Number.POSITIVE_INFINITY;
+
+  for (const { candidate, candidateIndex } of cameraFacingCandidates) {
+    const poseDistanceScore = computePoseDistanceScore(previousPose, candidate.pose);
+
+    if (poseDistanceScore < bestPoseDistanceScore) {
+      bestPoseDistanceScore = poseDistanceScore;
+      bestCandidateIndex = candidateIndex;
+    }
+  }
+
+  return bestCandidateIndex;
+}
+
+/** Picks the best camera-facing planar candidate, optionally biased toward previousPose. */
 export function selectCameraFacingPlanarResult(
   planarResult: Extract<ReturnType<typeof estimatePlanarPose>, { success: true }>,
   input: EstimateAprilCubePoseInput,
   markerIds: ReadonlyArray<number>,
+  previousPose?: Pose,
 ): Extract<ReturnType<typeof estimatePlanarPose>, { success: true }> | null {
-  const cameraFacingCandidateIndex = planarResult.candidates.findIndex((candidate) =>
-    isPoseFacingCameraForMarkers(input, markerIds, candidate.pose),
+  const cameraFacingCandidateIndex = selectBestCameraFacingCandidateIndex(
+    planarResult,
+    input,
+    markerIds,
+    previousPose,
   );
 
   if (cameraFacingCandidateIndex < 0) {
