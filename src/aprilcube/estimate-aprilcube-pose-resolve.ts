@@ -1,181 +1,100 @@
 /**
  * Multi-face outlier re-solve and single-marker planar fallback for AprilCube pose.
  */
-import {
-  DEFAULT_RANSAC_REPROJECTION_ERROR_THRESHOLD_PX,
-  MINIMUM_ESTIMATE_POSE_CORRESPONDENCE_COUNT,
-} from "../pnp/constants.js";
+import { areObjectPointsCoplanar } from "../pnp/coplanarity.js";
 import type { ImagePoint2D, ObjectPoint3D } from "../core/types.js";
 import { estimatePose } from "../pnp/estimate-pose.js";
-import type { EstimatePoseSuccess } from "../pnp/estimate-pose-types.js";
-import { estimatePlanarPose } from "../pnp/planar/estimate-planar-pose.js";
-import {
-  buildAprilCubePoseSuccess,
-  buildPlanarAprilCubePoseSuccess,
-  refineAllCorrespondencesFromSeed,
-} from "./aprilcube-pose-success.js";
-import {
-  buildMarkerCorrespondenceSlices,
-  getUniqueMarkerIds,
-  selectCorrespondencesByMarkerId,
-} from "./correspondence-by-marker.js";
+import { buildAprilCubeCorrespondences } from "./build-correspondences.js";
+import { buildAprilCubePoseSuccess } from "./aprilcube-pose-success.js";
+import { estimateCoplanarAprilCubePose } from "./coplanar-aprilcube-pose.js";
 import {
   computeAprilCubeMarkerReprojectionDiagnostics,
   selectOutlierMarkerIds,
 } from "./marker-outlier-resolver.js";
+import { resolveMultiFaceReprojectionErrorThresholdPx } from "./pose-policy.js";
 import {
-  isPoseFacingCameraForMarkers,
-  selectCameraFacingPlanarResult,
-} from "./pose-facing-camera.js";
+  estimateBestPlanarSeedForMultiFace,
+  estimateBestSingleMarkerPlanarFallback,
+} from "./single-marker-planar-pose.js";
 import type {
   AprilCubePoseMode,
   EstimateAprilCubePoseInput,
   EstimateAprilCubePoseOptions,
   EstimateAprilCubePoseResult,
-  EstimateAprilCubePoseSuccess,
 } from "./types.js";
 
-function estimatePoseFromSingleMarkerPlanarSeeds(
-  input: EstimateAprilCubePoseInput,
-  imagePoints: ReadonlyArray<ImagePoint2D>,
-  objectPoints: ReadonlyArray<ObjectPoint3D>,
-  markerIds: ReadonlyArray<number>,
-  options: EstimateAprilCubePoseOptions,
-): EstimatePoseSuccess | null {
-  let bestPoseResult: EstimatePoseSuccess | null = null;
-  const markerSlices = buildMarkerCorrespondenceSlices(imagePoints, objectPoints, markerIds);
-
-  for (const markerSlice of markerSlices) {
-    const markerId = markerSlice.markerId;
-
-    if (markerSlice.imagePoints.length < MINIMUM_ESTIMATE_POSE_CORRESPONDENCE_COUNT) {
-      continue;
-    }
-
-    const planarResult = estimatePlanarPose(
-      {
-        imagePoints: markerSlice.imagePoints,
-        objectPoints: markerSlice.objectPoints,
-        cameraIntrinsics: input.cameraIntrinsics,
-      },
-      {
-        previousPose: options.previousPose,
-        maxRefinementIterations: options.maxRefinementIterations,
-      },
-    );
-    const planarCandidates = planarResult.candidates ?? [];
-
-    for (const planarCandidate of planarCandidates) {
-      if (!isPoseFacingCameraForMarkers(input, [markerId], planarCandidate.pose)) {
-        continue;
-      }
-
-      const refinedPoseResult = refineAllCorrespondencesFromSeed(
-        input,
-        imagePoints,
-        objectPoints,
-        planarCandidate.pose,
-        options,
-      );
-
-      if (refinedPoseResult === null) {
-        continue;
-      }
-
-      if (!isPoseFacingCameraForMarkers(input, markerIds, refinedPoseResult.pose)) {
-        continue;
-      }
-
-      if (
-        bestPoseResult === null ||
-        refinedPoseResult.finalMeanReprojectionErrorPx <
-          bestPoseResult.finalMeanReprojectionErrorPx
-      ) {
-        bestPoseResult = refinedPoseResult;
-      }
-    }
-  }
-
-  return bestPoseResult;
-}
-
-function estimateBestSingleMarkerFallback(
+function buildMultiFaceSuccessPayload(
   input: EstimateAprilCubePoseInput,
   imagePoints: ReadonlyArray<ImagePoint2D>,
   objectPoints: ReadonlyArray<ObjectPoint3D>,
   markerIds: ReadonlyArray<number>,
   cornerIndices: ReadonlyArray<number>,
+  poseMode: AprilCubePoseMode,
+  rejectedMarkerIds: ReadonlyArray<number>,
   options: EstimateAprilCubePoseOptions,
-): EstimateAprilCubePoseSuccess | null {
-  let bestFallbackResult: EstimateAprilCubePoseSuccess | null = null;
+  selectedPoseResult: Extract<ReturnType<typeof estimatePose>, { success: true }>,
+) {
+  return buildAprilCubePoseSuccess({
+    poseResult: selectedPoseResult,
+    input,
+    imagePoints,
+    objectPoints,
+    markerIds,
+    cornerIndices,
+    poseMode,
+    rejectedMarkerIds,
+    previousPose: options.previousPose,
+  });
+}
 
-  for (const markerId of getUniqueMarkerIds(markerIds)) {
-    const selectedCorrespondences = selectCorrespondencesByMarkerId(
-      markerId,
-      imagePoints,
-      objectPoints,
-      markerIds,
-      cornerIndices,
-    );
+function resolveAprilCubePoseAfterOutlierRemoval(
+  input: EstimateAprilCubePoseInput,
+  filteredMarkers: EstimateAprilCubePoseInput["markers"],
+  options: EstimateAprilCubePoseOptions,
+): EstimateAprilCubePoseResult | null {
+  const filteredCorrespondenceResult = buildAprilCubeCorrespondences(
+    filteredMarkers,
+    input.config,
+  );
 
-    if (selectedCorrespondences.imagePoints.length < MINIMUM_ESTIMATE_POSE_CORRESPONDENCE_COUNT) {
-      continue;
-    }
-
-    const planarResult = estimatePlanarPose(
-      {
-        imagePoints: selectedCorrespondences.imagePoints,
-        objectPoints: selectedCorrespondences.objectPoints,
-        cameraIntrinsics: input.cameraIntrinsics,
-      },
-      {
-        previousPose: options.previousPose,
-        maxRefinementIterations: options.maxRefinementIterations,
-      },
-    );
-
-    if (!planarResult.success) {
-      continue;
-    }
-
-    const cameraFacingPlanarResult = selectCameraFacingPlanarResult(
-      planarResult,
-      input,
-      selectedCorrespondences.markerIds,
-      options.previousPose,
-    );
-
-    if (cameraFacingPlanarResult === null) {
-      continue;
-    }
-
-    const fallbackResult = buildPlanarAprilCubePoseSuccess(
-      cameraFacingPlanarResult,
-      input,
-      selectedCorrespondences.markerIds,
-      selectedCorrespondences.cornerIndices,
-      selectedCorrespondences.imagePoints,
-      selectedCorrespondences.objectPoints,
-      options,
-    );
-    const rejectedMarkerIds = getUniqueMarkerIds(markerIds).filter(
-      (candidateMarkerId) => candidateMarkerId !== markerId,
-    );
-    const fallbackWithRejectedMarkers = {
-      ...fallbackResult,
-      rejectedMarkerIds,
-    };
-
-    if (
-      bestFallbackResult === null ||
-      fallbackWithRejectedMarkers.finalMeanReprojectionErrorPx <
-        bestFallbackResult.finalMeanReprojectionErrorPx
-    ) {
-      bestFallbackResult = fallbackWithRejectedMarkers;
-    }
+  if (!filteredCorrespondenceResult.success) {
+    return null;
   }
 
-  return bestFallbackResult;
+  const filteredInput: EstimateAprilCubePoseInput = {
+    markers: filteredMarkers,
+    config: input.config,
+    cameraIntrinsics: input.cameraIntrinsics,
+  };
+  const resolveOptions: EstimateAprilCubePoseOptions = {
+    ...options,
+    skipOutlierResolve: true,
+  };
+
+  if (areObjectPointsCoplanar(filteredCorrespondenceResult.objectPoints)) {
+    return estimateCoplanarAprilCubePose(
+      filteredInput,
+      filteredCorrespondenceResult,
+      resolveOptions,
+    );
+  }
+
+  const {
+    imagePoints,
+    objectPoints,
+    markerIds,
+    cornerIndices,
+  } = filteredCorrespondenceResult;
+
+  return estimateMultiFaceAprilCubePose(
+    filteredInput,
+    imagePoints,
+    objectPoints,
+    markerIds,
+    cornerIndices,
+    resolveOptions,
+    "multiFace",
+  );
 }
 
 /** Runs multi-face EPnP with optional outlier re-solve and single-marker fallback. */
@@ -187,10 +106,6 @@ export function estimateMultiFaceAprilCubePose(
   cornerIndices: ReadonlyArray<number>,
   options: EstimateAprilCubePoseOptions,
   poseMode: AprilCubePoseMode,
-  estimateAprilCubePose: (
-    input: EstimateAprilCubePoseInput,
-    options?: EstimateAprilCubePoseOptions,
-  ) => EstimateAprilCubePoseResult,
 ): EstimateAprilCubePoseResult {
   const initialPoseResult = estimatePose(
     {
@@ -209,7 +124,7 @@ export function estimateMultiFaceAprilCubePose(
     };
   }
 
-  const seededPoseResult = estimatePoseFromSingleMarkerPlanarSeeds(
+  const seededPoseResult = estimateBestPlanarSeedForMultiFace(
     input,
     imagePoints,
     objectPoints,
@@ -221,8 +136,7 @@ export function estimateMultiFaceAprilCubePose(
     seededPoseResult.finalMeanReprojectionErrorPx < initialPoseResult.finalMeanReprojectionErrorPx
       ? seededPoseResult
       : initialPoseResult;
-  const reprojectionErrorThresholdPx =
-    options.reprojectionErrorThresholdPx ?? DEFAULT_RANSAC_REPROJECTION_ERROR_THRESHOLD_PX;
+  const reprojectionErrorThresholdPx = resolveMultiFaceReprojectionErrorThresholdPx(options);
 
   const markerDiagnostics = computeAprilCubeMarkerReprojectionDiagnostics(
     imagePoints,
@@ -235,7 +149,7 @@ export function estimateMultiFaceAprilCubePose(
 
   if (outlierMarkerIds.length === 0) {
     if (selectedPoseResult.finalMeanReprojectionErrorPx > reprojectionErrorThresholdPx) {
-      const singleMarkerFallbackResult = estimateBestSingleMarkerFallback(
+      const singleMarkerFallbackResult = estimateBestSingleMarkerPlanarFallback(
         input,
         imagePoints,
         objectPoints,
@@ -253,66 +167,53 @@ export function estimateMultiFaceAprilCubePose(
       }
     }
 
-    return buildAprilCubePoseSuccess(
-      selectedPoseResult,
+    return buildMultiFaceSuccessPayload(
       input,
       imagePoints,
       objectPoints,
       markerIds,
       cornerIndices,
       poseMode,
-      undefined,
-      undefined,
       [],
-      options.previousPose,
+      options,
+      selectedPoseResult,
     );
   }
 
   if (options.skipOutlierResolve === true) {
-    return buildAprilCubePoseSuccess(
-      selectedPoseResult,
+    return buildMultiFaceSuccessPayload(
       input,
       imagePoints,
       objectPoints,
       markerIds,
       cornerIndices,
       poseMode,
-      undefined,
-      undefined,
       outlierMarkerIds,
-      options.previousPose,
+      options,
+      selectedPoseResult,
     );
   }
 
   const filteredMarkers = input.markers.filter(
     (marker) => !outlierMarkerIds.includes(marker.id),
   );
-
-  const resolvedAprilCubeResult = estimateAprilCubePose(
-    {
-      markers: filteredMarkers,
-      config: input.config,
-      cameraIntrinsics: input.cameraIntrinsics,
-    },
-    {
-      ...options,
-      skipOutlierResolve: true,
-    },
+  const resolvedAprilCubeResult = resolveAprilCubePoseAfterOutlierRemoval(
+    input,
+    filteredMarkers,
+    options,
   );
 
-  if (!resolvedAprilCubeResult.success) {
-    return buildAprilCubePoseSuccess(
-      selectedPoseResult,
+  if (resolvedAprilCubeResult === null || !resolvedAprilCubeResult.success) {
+    return buildMultiFaceSuccessPayload(
       input,
       imagePoints,
       objectPoints,
       markerIds,
       cornerIndices,
       poseMode,
-      undefined,
-      undefined,
       outlierMarkerIds,
-      options.previousPose,
+      options,
+      selectedPoseResult,
     );
   }
 

@@ -7,8 +7,9 @@ import type { ImagePoint2D, ObjectPoint3D, Pose } from "../core/types.js";
 import { DEFAULT_RANSAC_REPROJECTION_ERROR_THRESHOLD_PX } from "../pnp/constants.js";
 import type { EstimatePoseSuccess } from "../pnp/estimate-pose-types.js";
 import { classifyCorrespondenceInliers } from "../pnp/inlier-classification.js";
-import { estimatePlanarPose } from "../pnp/planar/estimate-planar-pose.js";
+import type { EstimatePlanarPoseSuccess } from "../pnp/planar/types.js";
 import { refinePoseLM } from "../pnp/refine-pose-lm.js";
+import { countUniqueMarkerIds } from "./correspondence-by-marker.js";
 import { computeAprilCubeMarkerReprojectionDiagnostics } from "./marker-outlier-resolver.js";
 import type {
   AprilCubeCornerDiagnostic,
@@ -17,6 +18,20 @@ import type {
   EstimateAprilCubePoseOptions,
   EstimateAprilCubePoseSuccess,
 } from "./types.js";
+
+export interface BuildAprilCubePoseSuccessContext {
+  readonly poseResult: EstimatePoseSuccess;
+  readonly input: EstimateAprilCubePoseInput;
+  readonly imagePoints: ReadonlyArray<ImagePoint2D>;
+  readonly objectPoints: ReadonlyArray<ObjectPoint3D>;
+  readonly markerIds: ReadonlyArray<number>;
+  readonly cornerIndices: ReadonlyArray<number>;
+  readonly poseMode: AprilCubePoseMode;
+  readonly planarCandidateCount?: number;
+  readonly planarAmbiguityScore?: number;
+  readonly rejectedMarkerIds: ReadonlyArray<number>;
+  readonly previousPose?: Pose;
+}
 
 function buildOutlierMarkerDiagnostics(
   outlierIndices: ReadonlyArray<number>,
@@ -37,10 +52,6 @@ function buildOutlierMarkerDiagnostics(
       correspondenceIndex,
     };
   });
-}
-
-function countUniqueMarkerIds(markerIds: ReadonlyArray<number>): number {
-  return new Set(markerIds).size;
 }
 
 function buildEstimatePoseSuccessFromClassification(
@@ -102,45 +113,38 @@ function applyPreviousPoseRotationContinuity(
 
 /** Builds the public AprilCube success payload from a core pose result. */
 export function buildAprilCubePoseSuccess(
-  poseResult: EstimatePoseSuccess,
-  input: EstimateAprilCubePoseInput,
-  imagePoints: ReadonlyArray<ImagePoint2D>,
-  objectPoints: ReadonlyArray<ObjectPoint3D>,
-  markerIds: ReadonlyArray<number>,
-  cornerIndices: ReadonlyArray<number>,
-  poseMode: AprilCubePoseMode,
-  planarCandidateCount: number | undefined,
-  planarAmbiguityScore: number | undefined,
-  rejectedMarkerIds: ReadonlyArray<number>,
-  previousPose?: Pose,
+  context: BuildAprilCubePoseSuccessContext,
 ): EstimateAprilCubePoseSuccess {
-  const continuousPoseResult = applyPreviousPoseRotationContinuity(poseResult, previousPose);
+  const continuousPoseResult = applyPreviousPoseRotationContinuity(
+    context.poseResult,
+    context.previousPose,
+  );
   const markerReprojectionDiagnostics = computeAprilCubeMarkerReprojectionDiagnostics(
-    imagePoints,
-    objectPoints,
-    markerIds,
+    context.imagePoints,
+    context.objectPoints,
+    context.markerIds,
     continuousPoseResult.pose,
-    input.cameraIntrinsics,
+    context.input.cameraIntrinsics,
   );
 
   return {
     ...continuousPoseResult,
-    detectedMarkerCount: input.markers.length,
-    correspondenceCount: imagePoints.length,
-    correspondenceMarkerIds: markerIds,
-    correspondenceCornerIndices: cornerIndices,
+    detectedMarkerCount: context.input.markers.length,
+    correspondenceCount: context.imagePoints.length,
+    correspondenceMarkerIds: context.markerIds,
+    correspondenceCornerIndices: context.cornerIndices,
     outlierMarkerDiagnostics: buildOutlierMarkerDiagnostics(
       continuousPoseResult.outlierIndices,
-      markerIds,
-      cornerIndices,
+      context.markerIds,
+      context.cornerIndices,
     ),
-    poseMode,
-    visibleFaceCount: countUniqueMarkerIds(markerIds),
-    detectedMarkerIds: input.markers.map((marker) => marker.id),
-    planarCandidateCount,
-    planarAmbiguityScore,
+    poseMode: context.poseMode,
+    visibleFaceCount: countUniqueMarkerIds(context.markerIds),
+    detectedMarkerIds: context.input.markers.map((marker) => marker.id),
+    planarCandidateCount: context.planarCandidateCount,
+    planarAmbiguityScore: context.planarAmbiguityScore,
     markerReprojectionDiagnostics,
-    rejectedMarkerIds,
+    rejectedMarkerIds: context.rejectedMarkerIds,
   };
 }
 
@@ -186,7 +190,7 @@ export function refineAllCorrespondencesFromSeed(
 
 /** Builds a single-face planar AprilCube success payload. */
 export function buildPlanarAprilCubePoseSuccess(
-  planarResult: Extract<ReturnType<typeof estimatePlanarPose>, { success: true }>,
+  planarResult: EstimatePlanarPoseSuccess,
   input: EstimateAprilCubePoseInput,
   markerIds: ReadonlyArray<number>,
   cornerIndices: ReadonlyArray<number>,
@@ -208,17 +212,17 @@ export function buildPlanarAprilCubePoseSuccess(
     reprojectionErrorThresholdPx,
   );
 
-  return buildAprilCubePoseSuccess(
+  return buildAprilCubePoseSuccess({
     poseResult,
     input,
     imagePoints,
     objectPoints,
     markerIds,
     cornerIndices,
-    "singleFacePlanar",
-    planarResult.candidates.length,
-    planarResult.planarAmbiguityScore,
-    [],
-    options.previousPose,
-  );
+    poseMode: "singleFacePlanar",
+    planarCandidateCount: planarResult.candidates.length,
+    planarAmbiguityScore: planarResult.planarAmbiguityScore,
+    rejectedMarkerIds: [],
+    previousPose: options.previousPose,
+  });
 }

@@ -23,6 +23,11 @@ export function getUniqueMarkerIds(markerIds: ReadonlyArray<number>): number[] {
   return [...new Set(markerIds)];
 }
 
+/** Returns the count of unique marker IDs. */
+export function countUniqueMarkerIds(markerIds: ReadonlyArray<number>): number {
+  return getUniqueMarkerIds(markerIds).length;
+}
+
 /** Builds one correspondence slice per detected marker ID. */
 export function buildMarkerCorrespondenceSlices(
   imagePoints: ReadonlyArray<ImagePoint2D>,
@@ -68,42 +73,14 @@ export function buildMarkerCorrespondenceSlices(
   return [...slicesByMarkerId.values()];
 }
 
-/** Selects correspondences belonging to one marker ID. */
-export function selectCorrespondencesByMarkerId(
-  targetMarkerId: number,
-  imagePoints: ReadonlyArray<ImagePoint2D>,
-  objectPoints: ReadonlyArray<ObjectPoint3D>,
-  markerIds: ReadonlyArray<number>,
-  cornerIndices: ReadonlyArray<number>,
+/** Converts one marker slice into the selected-correspondences shape used by planar fallback. */
+export function toSelectedMarkerCorrespondences(
+  markerSlice: MarkerCorrespondenceSlice,
 ): SelectedMarkerCorrespondences {
-  const selectedImagePoints: ImagePoint2D[] = [];
-  const selectedObjectPoints: ObjectPoint3D[] = [];
-  const selectedMarkerIds: number[] = [];
-  const selectedCornerIndices: number[] = [];
-
-  for (let pointIndex = 0; pointIndex < markerIds.length; pointIndex += 1) {
-    if (markerIds[pointIndex] !== targetMarkerId) {
-      continue;
-    }
-
-    const imagePoint = imagePoints[pointIndex];
-    const objectPoint = objectPoints[pointIndex];
-    const cornerIndex = cornerIndices[pointIndex];
-
-    if (imagePoint === undefined || objectPoint === undefined || cornerIndex === undefined) {
-      continue;
-    }
-
-    selectedImagePoints.push(imagePoint);
-    selectedObjectPoints.push(objectPoint);
-    selectedMarkerIds.push(targetMarkerId);
-    selectedCornerIndices.push(cornerIndex);
-  }
-
   return {
-    imagePoints: selectedImagePoints,
-    objectPoints: selectedObjectPoints,
-    markerIds: selectedMarkerIds,
-    cornerIndices: selectedCornerIndices,
+    imagePoints: markerSlice.imagePoints,
+    objectPoints: markerSlice.objectPoints,
+    markerIds: markerSlice.imagePoints.map(() => markerSlice.markerId),
+    cornerIndices: markerSlice.cornerIndices,
   };
 }

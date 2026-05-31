@@ -2,30 +2,41 @@
  * Estimates AprilCube pose with multi-face EPnP, planar single-face, and outlier re-solve.
  */
 import { areObjectPointsCoplanar } from "../pnp/coplanarity.js";
-import { estimatePlanarPose } from "../pnp/planar/estimate-planar-pose.js";
-import { buildPlanarAprilCubePoseSuccess } from "./aprilcube-pose-success.js";
 import { buildAprilCubeCorrespondences } from "./build-correspondences.js";
+import { estimateCoplanarAprilCubePose } from "./coplanar-aprilcube-pose.js";
 import { estimateMultiFaceAprilCubePose } from "./estimate-aprilcube-pose-resolve.js";
-import { selectCameraFacingPlanarResult } from "./pose-facing-camera.js";
 import type {
+  AprilCubeCorrespondencesSuccess,
   EstimateAprilCubePoseInput,
   EstimateAprilCubePoseOptions,
   EstimateAprilCubePoseResult,
 } from "./types.js";
 
-/** Single-face planar poses above this residual are too weak for AprilCube overlay. */
-const DEFAULT_SINGLE_FACE_PLANAR_MAX_REPROJECTION_ERROR_PX = 2;
+/** Estimates pose from pre-built correspondences (coplanar or multi-face path). */
+export function estimateAprilCubePoseFromCorrespondences(
+  input: EstimateAprilCubePoseInput,
+  correspondences: AprilCubeCorrespondencesSuccess,
+  options: EstimateAprilCubePoseOptions = {},
+): EstimateAprilCubePoseResult {
+  const {
+    imagePoints,
+    objectPoints,
+    markerIds,
+    cornerIndices,
+  } = correspondences;
 
-function countUniqueMarkerIds(markerIds: ReadonlyArray<number>): number {
-  return new Set(markerIds).size;
-}
+  if (areObjectPointsCoplanar(objectPoints)) {
+    return estimateCoplanarAprilCubePose(input, correspondences, options);
+  }
 
-function resolveSingleFacePlanarMaxReprojectionErrorPx(
-  options: EstimateAprilCubePoseOptions,
-): number {
-  return (
-    options.reprojectionErrorThresholdPx ??
-    DEFAULT_SINGLE_FACE_PLANAR_MAX_REPROJECTION_ERROR_PX
+  return estimateMultiFaceAprilCubePose(
+    input,
+    imagePoints,
+    objectPoints,
+    markerIds,
+    cornerIndices,
+    options,
+    "multiFace",
   );
 }
 
@@ -47,85 +58,5 @@ export function estimateAprilCubePose(
     };
   }
 
-  const {
-    imagePoints,
-    objectPoints,
-    markerIds,
-    cornerIndices,
-  } = correspondenceResult;
-
-  const objectPointsAreCoplanar = areObjectPointsCoplanar(objectPoints);
-
-  if (objectPointsAreCoplanar) {
-    const planarResult = estimatePlanarPose(
-      {
-        imagePoints,
-        objectPoints,
-        cameraIntrinsics: input.cameraIntrinsics,
-      },
-      {
-        previousPose: options.previousPose,
-        maxRefinementIterations: options.maxRefinementIterations,
-      },
-    );
-
-    if (!planarResult.success) {
-      return {
-        success: false,
-        stage: "poseEstimation",
-        reason:
-          planarResult.reason === "planarAmbiguous"
-            ? "planarAmbiguous"
-            : planarResult.reason,
-      };
-    }
-
-    const cameraFacingPlanarResult = selectCameraFacingPlanarResult(
-      planarResult,
-      input,
-      markerIds,
-      options.previousPose,
-    );
-
-    if (cameraFacingPlanarResult === null) {
-      return {
-        success: false,
-        stage: "poseEstimation",
-        reason: "planarAmbiguous",
-      };
-    }
-
-    if (
-      countUniqueMarkerIds(markerIds) === 1 &&
-      cameraFacingPlanarResult.finalMeanReprojectionErrorPx >
-        resolveSingleFacePlanarMaxReprojectionErrorPx(options)
-    ) {
-      return {
-        success: false,
-        stage: "poseEstimation",
-        reason: "reprojectionErrorTooHigh",
-      };
-    }
-
-    return buildPlanarAprilCubePoseSuccess(
-      cameraFacingPlanarResult,
-      input,
-      markerIds,
-      cornerIndices,
-      imagePoints,
-      objectPoints,
-      options,
-    );
-  }
-
-  return estimateMultiFaceAprilCubePose(
-    input,
-    imagePoints,
-    objectPoints,
-    markerIds,
-    cornerIndices,
-    options,
-    "multiFace",
-    estimateAprilCubePose,
-  );
+  return estimateAprilCubePoseFromCorrespondences(input, correspondenceResult, options);
 }

@@ -5,13 +5,7 @@ import { projectPoints } from "../core/project-points.js";
 import { reprojectionError } from "../core/reprojection-error.js";
 import type { CameraIntrinsics, ImagePoint2D, ObjectPoint3D, Pose } from "../core/types.js";
 import { buildMarkerCorrespondenceSlices } from "./correspondence-by-marker.js";
-
-/** Per-marker mean corner reprojection error in pixels. */
-export interface AprilCubeMarkerReprojectionDiagnostic {
-  readonly markerId: number;
-  readonly meanReprojectionErrorPx: number;
-  readonly cornerCount: number;
-}
+import type { AprilCubeMarkerReprojectionDiagnostic } from "./types.js";
 
 /** Minimum marker count required before outlier re-solve is attempted. */
 export const MINIMUM_MARKER_COUNT_FOR_OUTLIER_RESOLVE = 3;

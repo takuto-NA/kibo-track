@@ -3,16 +3,14 @@
  */
 import { quaternionToRotationMatrix } from "../core/quaternion.js";
 import type { ObjectPoint3D, Pose } from "../core/types.js";
+import type { EstimatePlanarPoseSuccess } from "../pnp/planar/types.js";
 import { computePoseDistanceScore } from "../pnp/planar/pose-distance.js";
-import { estimatePlanarPose } from "../pnp/planar/estimate-planar-pose.js";
+import { PRIOR_POSE_REPROJECTION_PREFERENCE_GAP_PX } from "./pose-policy.js";
 import type { AprilCubeFaceName, EstimateAprilCubePoseInput } from "./types.js";
 import { getUniqueMarkerIds } from "./correspondence-by-marker.js";
 
 /** Face normals with camera-space Z above this value are treated as pointing away. */
 const CAMERA_FACING_NORMAL_Z_MAXIMUM = 0;
-
-/** Prefer best reprojection over temporal prior when px gap exceeds this value. */
-const PRIOR_POSE_REPROJECTION_PREFERENCE_GAP_PX = 0.25;
 
 const FACE_NAME_TO_OBJECT_NORMAL: Readonly<Record<AprilCubeFaceName, ObjectPoint3D>> = {
   right: [1, 0, 0],
@@ -64,7 +62,7 @@ export function isPoseFacingCameraForMarkers(
 }
 
 function selectBestCameraFacingCandidateIndex(
-  planarResult: Extract<ReturnType<typeof estimatePlanarPose>, { success: true }>,
+  planarResult: EstimatePlanarPoseSuccess,
   input: EstimateAprilCubePoseInput,
   markerIds: ReadonlyArray<number>,
   previousPose: Pose | undefined,
@@ -119,11 +117,11 @@ function selectBestCameraFacingCandidateIndex(
 
 /** Picks the best camera-facing planar candidate, optionally biased toward previousPose. */
 export function selectCameraFacingPlanarResult(
-  planarResult: Extract<ReturnType<typeof estimatePlanarPose>, { success: true }>,
+  planarResult: EstimatePlanarPoseSuccess,
   input: EstimateAprilCubePoseInput,
   markerIds: ReadonlyArray<number>,
   previousPose?: Pose,
-): Extract<ReturnType<typeof estimatePlanarPose>, { success: true }> | null {
+): EstimatePlanarPoseSuccess | null {
   const cameraFacingCandidateIndex = selectBestCameraFacingCandidateIndex(
     planarResult,
     input,
