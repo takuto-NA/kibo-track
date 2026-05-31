@@ -59,3 +59,28 @@ export type {
 
 export { refinePoseLM } from "./pnp/refine-pose-lm.js";
 export { estimatePose } from "./pnp/estimate-pose.js";
+
+export type {
+  AprilCubeAdapterFailureReason,
+  AprilCubeConfig,
+  AprilCubeCornerDiagnostic,
+  AprilCubeCornerOrderName,
+  AprilCubeCorrespondencesFailure,
+  AprilCubeCorrespondencesResult,
+  AprilCubeCorrespondencesSuccess,
+  AprilCubeFaceMap,
+  AprilCubeFaceName,
+  AprilCubeObjectPointMap,
+  DetectedMarkerCorners,
+  EstimateAprilCubePoseFailure,
+  EstimateAprilCubePoseInput,
+  EstimateAprilCubePoseOptions,
+  EstimateAprilCubePoseResult,
+  EstimateAprilCubePoseSuccess,
+} from "./aprilcube/types.js";
+
+export { buildAprilCubeCorrespondences } from "./aprilcube/build-correspondences.js";
+export { buildAprilCubeObjectPointMap } from "./aprilcube/build-object-point-map.js";
+export { buildFaceObjectCorners } from "./aprilcube/cube-corners.js";
+export { estimateAprilCubePose } from "./aprilcube/estimate-aprilcube-pose.js";
+export { isValidAprilCubeConfig } from "./aprilcube/validate-config.js";

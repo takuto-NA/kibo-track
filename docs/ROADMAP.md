@@ -58,10 +58,16 @@
 - cube center origin の 3D corner map
 - corner order 設定で detector 差を吸収
 - core は marker 非依存のまま
+- `buildAprilCubeCorrespondences` が marker ID / corner index メタデータ付きで 2D–3D correspondences を返す
+- 隣接 face の shared cube corner は dedupe して PnP に渡す
+- `estimateAprilCubePose` が multi-face 非共面 fixture で pose を復元する
+- single-face planar pose は `degenerateConfiguration` を明示的に返す
+- `scripts/demo-aprilcube.mjs` で clean / noisy / outlier / unsupported diagnostics を出力
 
 **Non-goals**:
 - tag detection
 - rendering
+- single-face planar PnP
 
 ## v0.5 — Pose tracking
 
