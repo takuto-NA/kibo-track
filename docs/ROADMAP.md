@@ -22,8 +22,10 @@
 
 **Exit criteria**:
 - `refinePoseLM` が initial pose を改善できる
-- residual は pixel space
+- residual は pixel space の `[du, dv, ...]` 順
 - 初期版 Jacobian は数値微分
+- 返り値に `initialMeanReprojectionErrorPx`, `finalMeanReprojectionErrorPx`, `improvementRatio`, `converged`, `iterations`, `finalResidualNorm` を含む
+- invalid input は `success: false`、optimizer trial の invalid projection は finite penalty residual
 
 **Non-goals**:
 - EPnP initial solver

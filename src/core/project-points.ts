@@ -8,26 +8,9 @@ import type {
   ObjectPoint3D,
   Pose,
 } from "./types.js";
+import { assertValidCameraIntrinsics } from "./validate-camera-intrinsics.js";
 
 const MINIMUM_POSITIVE_DEPTH = Number.EPSILON;
-
-function assertValidCameraIntrinsics(cameraIntrinsics: CameraIntrinsics): void {
-  if (
-    cameraIntrinsics.focalLengthX <= 0 ||
-    cameraIntrinsics.focalLengthY <= 0
-  ) {
-    throw new RangeError("Camera focal lengths must be positive.");
-  }
-
-  if (
-    !Number.isFinite(cameraIntrinsics.focalLengthX) ||
-    !Number.isFinite(cameraIntrinsics.focalLengthY) ||
-    !Number.isFinite(cameraIntrinsics.principalPointX) ||
-    !Number.isFinite(cameraIntrinsics.principalPointY)
-  ) {
-    throw new RangeError("Camera intrinsics must contain finite numbers.");
-  }
-}
 
 function projectCameraPointToImage(
   cameraPointX: number,

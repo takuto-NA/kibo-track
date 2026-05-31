@@ -40,3 +40,13 @@ export {
   meanReprojectionErrorPx,
   reprojectionError,
 } from "./core/reprojection-error.js";
+
+export type {
+  RefinePoseLMFailure,
+  RefinePoseLMInput,
+  RefinePoseLMOptions,
+  RefinePoseLMResult,
+  RefinePoseLMSuccess,
+} from "./pnp/types.js";
+
+export { refinePoseLM } from "./pnp/refine-pose-lm.js";
