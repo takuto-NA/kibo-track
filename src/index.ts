@@ -49,4 +49,13 @@ export type {
   RefinePoseLMSuccess,
 } from "./pnp/types.js";
 
+export type {
+  EstimatePoseFailure,
+  EstimatePoseInput,
+  EstimatePoseOptions,
+  EstimatePoseResult,
+  EstimatePoseSuccess,
+} from "./pnp/estimate-pose-types.js";
+
 export { refinePoseLM } from "./pnp/refine-pose-lm.js";
+export { estimatePose } from "./pnp/estimate-pose.js";

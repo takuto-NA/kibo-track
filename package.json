@@ -1,6 +1,6 @@
 {
   "name": "kibo-track",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Browser-oriented 2D-3D pose estimation and tracking library",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "ml-matrix": "^6.12.2",
     "numopt-js": "^0.4.0"
   },
   "devDependencies": {

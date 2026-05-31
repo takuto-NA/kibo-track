@@ -36,14 +36,19 @@
 **Goal**: 2D–3D correspondences から `estimatePose` を提供する。
 
 **Exit criteria**:
-- EPnP initial -> LM refine の主経路
-- point-level RANSAC wrapper
-- `success: false` の Result 型で推定失敗を返す
-- heuristic measurement confidence
+- EPnP initial -> LM refine の主経路（`enableRansac: false` で deterministic clean-data テスト可能）
+- point-level RANSAC wrapper（seeded sampling、px threshold、adaptive iteration cap、`notEnoughInliers`）
+- `EstimatePoseSuccess` に `pose`, `inlierIndices`, `outlierIndices`, `numInliers`, `inlierRatio`, `meanReprojectionErrorPx`, `confidence`, `initialMeanReprojectionErrorPx`, `finalMeanReprojectionErrorPx`, `iterations` を含む
+- `success: false` の Result 型で `notEnoughPoints`, `notEnoughInliers`, `degenerateConfiguration`, `invalidInput` を返す
+- heuristic measurement confidence（0..1、probability ではない）
+- normalized camera coordinate helpers、geometry degeneracy checks、EPnP substep unit tests
+- `scripts/demo-estimate-pose.mjs` で clean / noisy / outlier diagnostics を出力
 
 **Non-goals**:
 - marker-aware RANSAC
 - distortion
+- AprilCube adapter
+- tracking
 
 ## v0.4 — AprilCube adapter
 
