@@ -7,6 +7,7 @@ import { startCamera } from "./camera-startup.js";
 
 const DEFAULT_START_CAMERA_OPTIONS = {
   frameRateSelection: "deviceDefault" as const,
+  facingModeSelection: "environment" as const,
   resolution: {
     widthPixels: 1280,
     heightPixels: 720,
@@ -49,6 +50,28 @@ function createCaptureCanvasWithVisiblePixels(): HTMLCanvasElement {
   })) as unknown as HTMLCanvasElement["getContext"];
 
   return captureCanvas;
+}
+
+function createMockCameraMediaStream(
+  settings: MediaTrackSettings,
+  trackOptions: Record<string, unknown> = {},
+): MediaStream {
+  const videoTrack = {
+    label: "Mock Camera",
+    getSettings: () => settings,
+    stop: vi.fn(),
+    ...trackOptions,
+  };
+  const mediaStream = new MediaStream();
+
+  Object.defineProperty(mediaStream, "getVideoTracks", {
+    value: () => [videoTrack],
+  });
+  Object.defineProperty(mediaStream, "getTracks", {
+    value: () => [videoTrack],
+  });
+
+  return mediaStream;
 }
 
 afterEach(() => {
@@ -154,24 +177,12 @@ describe("startCamera", () => {
 
   it("returns cameraReady when stream metadata and first frame succeed", async () => {
     vi.stubGlobal("isSecureContext", true);
-    const mediaStream = new MediaStream();
+    const mediaStream = createMockCameraMediaStream({});
     vi.stubGlobal("navigator", {
       mediaDevices: {
         enumerateDevices: vi.fn().mockResolvedValue([{ kind: "videoinput", label: "Mock Camera" }]),
         getUserMedia: vi.fn().mockResolvedValue(mediaStream),
       },
-    });
-
-    Object.defineProperty(mediaStream, "getVideoTracks", {
-      value: () => [
-        {
-          label: "Mock Camera",
-          getSettings: () => ({}),
-        },
-      ],
-    });
-    Object.defineProperty(mediaStream, "getTracks", {
-      value: () => [],
     });
 
     const result = await startCamera(
@@ -197,7 +208,13 @@ describe("startCamera", () => {
 
   it("requests a capped 30 fps constraint when selected", async () => {
     vi.stubGlobal("isSecureContext", true);
-    const mediaStream = new MediaStream();
+    const mediaStream = createMockCameraMediaStream(
+      { facingMode: "environment", frameRate: CAMERA_FRAME_RATE_30_FPS },
+      {
+        getCapabilities: () => ({ frameRate: { min: 1, max: CAMERA_FRAME_RATE_30_FPS } }),
+        applyConstraints: vi.fn().mockResolvedValue(undefined),
+      },
+    );
     const getUserMedia = vi.fn().mockResolvedValue(mediaStream);
 
     vi.stubGlobal("navigator", {
@@ -207,38 +224,24 @@ describe("startCamera", () => {
       },
     });
 
-    Object.defineProperty(mediaStream, "getVideoTracks", {
-      value: () => [
-        {
-          label: "Mock Camera",
-          getSettings: () => ({ frameRate: CAMERA_FRAME_RATE_30_FPS }),
-          getCapabilities: () => ({ frameRate: { min: 1, max: CAMERA_FRAME_RATE_30_FPS } }),
-          applyConstraints: vi.fn().mockResolvedValue(undefined),
-        },
-      ],
-    });
-    Object.defineProperty(mediaStream, "getTracks", {
-      value: () => [],
-    });
-
     const result = await startCamera(
       {
         videoElement: createMockVideoElement(),
         captureCanvas: createCaptureCanvasWithVisiblePixels(),
       },
-      { frameRateSelection: "30", resolution: { widthPixels: 1280, heightPixels: 720 } },
+      { frameRateSelection: "30", facingModeSelection: "environment", resolution: { widthPixels: 1280, heightPixels: 720 } },
     );
 
-    expect(getUserMedia).toHaveBeenCalledWith({
-      video: expect.objectContaining({
-        frameRate: {
-          min: CAMERA_FRAME_RATE_30_FPS,
-          ideal: CAMERA_FRAME_RATE_30_FPS,
-          max: CAMERA_FRAME_RATE_30_FPS,
-        },
+    expect(getUserMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        video: expect.objectContaining({
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        }),
+        audio: false,
       }),
-      audio: false,
-    });
+    );
     expect(result.success).toBe(true);
 
     if (!result.success) {

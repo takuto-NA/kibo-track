@@ -20,6 +20,10 @@ import {
   renderDefaultCameraFrameRateSelectOptions,
 } from "./camera-frame-rate.js";
 import {
+  readSelectedCameraFacingModeSelection,
+  renderCameraFacingModeSelectOptions,
+} from "./camera-facing-mode.js";
+import {
   formatCameraResolutionLabel,
   readSelectedCameraResolution,
   renderCameraResolutionSelectOptions,
@@ -51,6 +55,9 @@ export async function handleStartCamera(
 ): Promise<void> {
   state.lifecycleState = "startingCamera";
   state.poseTracker.reset();
+  state.requestedCameraFacingModeSelection = readSelectedCameraFacingModeSelection(
+    domElements.cameraFacingModeSelect,
+  );
   state.requestedCameraResolution = readSelectedCameraResolution(domElements.cameraResolutionSelect);
   state.requestedCameraFrameRateSelection = readSelectedCameraFrameRateSelection(
     domElements.cameraFrameRateSelect,
@@ -65,6 +72,7 @@ export async function handleStartCamera(
     {
       frameRateSelection: state.requestedCameraFrameRateSelection,
       resolution: state.requestedCameraResolution,
+      facingModeSelection: state.requestedCameraFacingModeSelection,
     },
   );
 
@@ -82,6 +90,7 @@ export async function handleStartCamera(
   }
 
   state.mediaStream = startupResult.mediaStream;
+  state.actualCameraFacingMode = startupResult.actualFacingMode;
   state.actualCameraFrameRate = startupResult.actualFrameRate;
   state.cameraFrameRateCapabilityMin = startupResult.capabilityMinFrameRate;
   state.cameraFrameRateCapabilityMax = startupResult.capabilityMaxFrameRate;
@@ -157,15 +166,7 @@ export async function handleStartCamera(
   updateAppUi(
     domElements,
     state,
-    formatCameraStatusMessage(
-      startupResult.videoWidth,
-      startupResult.videoHeight,
-      startupResult.actualFrameRate,
-      state.requestedCameraResolution,
-      startupResult.requestedFrameRateSelection,
-      startupResult.frameRateMismatch,
-      startupResult.capabilityMaxFrameRate,
-    ),
+    formatCameraStatusMessage(startupResult, state.requestedCameraResolution),
     "resolutionReady",
     "not started",
     state.intrinsicsSource === "placeholder" ? "approximate intrinsics" : "calibrated intrinsics",
@@ -303,6 +304,7 @@ export async function handleProbeCameraFrameRates(
   state: AppRuntimeState,
 ): Promise<void> {
   const selectedResolution = readSelectedCameraResolution(domElements.cameraResolutionSelect);
+  const selectedFacingMode = readSelectedCameraFacingModeSelection(domElements.cameraFacingModeSelect);
 
   domElements.cameraFrameRateSelect.dataset.probeComplete = "false";
   domElements.cameraFrameRateHintElement.textContent =
@@ -316,7 +318,7 @@ export async function handleProbeCameraFrameRates(
     domElements.poseStatusElement.textContent ?? "not estimated",
   );
 
-  const probeResult = await probeCameraFrameRateOptions(selectedResolution);
+  const probeResult = await probeCameraFrameRateOptions(selectedResolution, selectedFacingMode);
 
   if (probeResult.success) {
     renderCameraFrameRateSelectOptions(
@@ -342,6 +344,7 @@ export async function handleProbeCameraFrameRates(
 
 /** Initializes camera resolution select options on first load. */
 export function initializeCameraCaptureControls(domElements: AppDomElements): void {
+  renderCameraFacingModeSelectOptions(domElements.cameraFacingModeSelect);
   renderCameraResolutionSelectOptions(domElements.cameraResolutionSelect);
   syncViewportCaptureAspectRatio(
     domElements.viewportElement,

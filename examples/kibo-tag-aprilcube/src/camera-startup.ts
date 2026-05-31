@@ -6,9 +6,13 @@ import {
   FIRST_FRAME_CAPTURE_RETRY_DELAY_MILLISECONDS,
   VIDEO_METADATA_TIMEOUT_MILLISECONDS,
 } from "./constants.js";
-import { buildCameraVideoConstraints, negotiateCameraFrameRate } from "./camera-frame-rate.js";
+import { readNegotiatedCameraFacingMode } from "./camera-facing-mode.js";
+import { stopCameraStream, stopMediaStreamTracks } from "./camera-media-stream-lifecycle.js";
+import { negotiateCameraFrameRate } from "./camera-frame-rate.js";
 import type { CameraResolutionPixels } from "./camera-resolution.js";
+import { requestCameraMediaStream } from "./request-camera-media-stream.js";
 import type {
+  CameraFacingModeSelection,
   CameraFrameRateSelection,
   CameraStartupFailureReason,
   CameraStartupResult,
@@ -22,22 +26,35 @@ export interface CameraStartupElements {
 export interface CameraStartupOptions {
   readonly frameRateSelection: CameraFrameRateSelection;
   readonly resolution: CameraResolutionPixels;
+  readonly facingModeSelection: CameraFacingModeSelection;
+}
+
+function readErrorName(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("name" in error)) {
+    return null;
+  }
+
+  const errorName = error.name;
+
+  if (typeof errorName !== "string") {
+    return null;
+  }
+
+  return errorName;
 }
 
 function mapGetUserMediaError(error: unknown): CameraStartupFailureReason {
-  if (!(error instanceof DOMException)) {
-    return "deviceBusyOrUnavailable";
-  }
+  const errorName = readErrorName(error);
 
-  if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+  if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
     return "permissionDenied";
   }
 
-  if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+  if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
     return "noVideoInput";
   }
 
-  if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+  if (errorName === "NotReadableError" || errorName === "TrackStartError") {
     return "deviceBusyOrUnavailable";
   }
 
@@ -169,19 +186,14 @@ export async function startCamera(
     };
   }
 
-  // Warm device enumeration before requesting the stream. Some browsers only expose
-  // video input labels after permission is granted through getUserMedia.
-  await navigator.mediaDevices.enumerateDevices();
-
+  // requestCameraMediaStream enumerates devices while resolving facingMode fallbacks.
   let mediaStream: MediaStream;
 
   try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: buildCameraVideoConstraints({
-        resolution: options.resolution,
-        frameRateSelection: options.frameRateSelection,
-      }),
-      audio: false,
+    mediaStream = await requestCameraMediaStream({
+      resolution: options.resolution,
+      frameRateSelection: options.frameRateSelection,
+      facingModeSelection: options.facingModeSelection,
     });
   } catch (error) {
     return {
@@ -197,9 +209,7 @@ export async function startCamera(
     await elements.videoElement.play();
     await waitForVideoMetadata(elements.videoElement, VIDEO_METADATA_TIMEOUT_MILLISECONDS);
   } catch (error) {
-    for (const track of mediaStream.getTracks()) {
-      track.stop();
-    }
+    stopMediaStreamTracks(mediaStream);
 
     return {
       success: false,
@@ -214,9 +224,7 @@ export async function startCamera(
   );
 
   if (firstFramePixels === null) {
-    for (const track of mediaStream.getTracks()) {
-      track.stop();
-    }
+    stopMediaStreamTracks(mediaStream);
 
     return {
       success: false,
@@ -243,16 +251,9 @@ export async function startCamera(
     capabilityMinFrameRate: frameRateNegotiation.capabilityMinFrameRate,
     capabilityMaxFrameRate: frameRateNegotiation.capabilityMaxFrameRate,
     frameRateMismatch: frameRateNegotiation.frameRateMismatch,
+    requestedFacingModeSelection: options.facingModeSelection,
+    actualFacingMode: readNegotiatedCameraFacingMode(mediaStream),
   };
 }
 
-/** Stops all tracks on a camera media stream. */
-export function stopCameraStream(mediaStream: MediaStream | null): void {
-  if (mediaStream === null) {
-    return;
-  }
-
-  for (const track of mediaStream.getTracks()) {
-    track.stop();
-  }
-}
+export { stopCameraStream } from "./camera-media-stream-lifecycle.js";

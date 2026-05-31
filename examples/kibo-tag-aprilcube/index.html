@@ -18,6 +18,13 @@
         <button id="start-camera-button" type="button">Start Camera</button>
         <button id="start-detector-button" type="button" disabled>Start Detector</button>
         <label>
+          Camera
+          <select id="camera-facing-mode-select" data-testid="camera-facing-mode-select">
+            <option value="environment" selected>Back (environment)</option>
+            <option value="user">Front (user)</option>
+          </select>
+        </label>
+        <label>
           Camera resolution
           <select id="camera-resolution-select" data-testid="camera-resolution-select"></select>
         </label>

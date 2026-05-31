@@ -9,7 +9,7 @@ import {
 } from "./camera-resolution.js";
 import { formatPoseDisplayLines } from "./format-pose-display.js";
 import type { AppDomElements, AppRuntimeState } from "./app-runtime.js";
-import type { CameraFrameRateSelection } from "./types.js";
+import type { CameraFrameRateSelection, CameraStartupSuccess } from "./types.js";
 
 function formatFrameRateCapabilityRange(
   capabilityMinFrameRate: number | null,
@@ -33,6 +33,8 @@ function formatDiagnostics(state: AppRuntimeState): string {
     `coastFrameCount: ${trackerSnapshot.coastFrameCount}`,
     `detectedMarkerCount: ${state.detectedMarkers.length}`,
     `overlayDisplayMode: ${state.overlayDisplayMode}`,
+    `requestedCameraFacingMode: ${state.requestedCameraFacingModeSelection}`,
+    `actualCameraFacingMode: ${state.actualCameraFacingMode ?? "unknown"}`,
     `requestedCameraResolution: ${formatCameraResolutionLabel(state.requestedCameraResolution)}`,
     `requestedCameraFrameRate: ${state.requestedCameraFrameRateSelection}`,
     `actualCameraFrameRate: ${state.actualCameraFrameRate ?? "unknown"}`,
@@ -135,41 +137,43 @@ function formatDetectionResults(state: AppRuntimeState): string {
 
 /** Formats the camera status line shown in the demo UI. */
 export function formatCameraStatusMessage(
-  videoWidth: number,
-  videoHeight: number,
-  actualFrameRate: number | null,
+  startupResult: CameraStartupSuccess,
   requestedResolution: CameraResolutionPixels,
-  requestedFrameRateSelection: CameraFrameRateSelection,
-  frameRateMismatch: boolean,
-  capabilityMaxFrameRate: number | null,
 ): string {
-  const resolutionMessage = `cameraReady ${videoWidth}x${videoHeight}`;
+  const resolutionMessage = `cameraReady ${startupResult.videoWidth}x${startupResult.videoHeight}`;
+  const facingModeSuffix =
+    startupResult.actualFacingMode !== null &&
+    startupResult.actualFacingMode !== startupResult.requestedFacingModeSelection
+      ? ` (requested ${startupResult.requestedFacingModeSelection}, got ${startupResult.actualFacingMode})`
+      : startupResult.actualFacingMode !== null
+        ? ` (${startupResult.actualFacingMode})`
+        : ` (${startupResult.requestedFacingModeSelection})`;
   const resolutionMismatch = !cameraResolutionMatchesRequest(
     requestedResolution,
-    videoWidth,
-    videoHeight,
+    startupResult.videoWidth,
+    startupResult.videoHeight,
   );
   const resolutionSuffix = resolutionMismatch
     ? ` (requested ${formatCameraResolutionLabel(requestedResolution)})`
     : "";
 
-  if (actualFrameRate === null) {
-    return `${resolutionMessage}${resolutionSuffix}`;
+  if (startupResult.actualFrameRate === null) {
+    return `${resolutionMessage}${resolutionSuffix}${facingModeSuffix}`;
   }
 
-  const frameRateMessage = `${resolutionMessage}${resolutionSuffix} @ ${actualFrameRate.toFixed(1)} fps`;
+  const frameRateMessage = `${resolutionMessage}${resolutionSuffix}${facingModeSuffix} @ ${startupResult.actualFrameRate.toFixed(1)} fps`;
 
-  if (!frameRateMismatch) {
+  if (!startupResult.frameRateMismatch) {
     return frameRateMessage;
   }
 
-  if (requestedFrameRateSelection !== "deviceDefault") {
+  if (startupResult.requestedFrameRateSelection !== "deviceDefault") {
     const capabilityHint =
-      capabilityMaxFrameRate !== null
-        ? `, device max ${capabilityMaxFrameRate.toFixed(0)} at this resolution`
+      startupResult.capabilityMaxFrameRate !== null
+        ? `, device max ${startupResult.capabilityMaxFrameRate.toFixed(0)} at this resolution`
         : "";
 
-    return `${frameRateMessage} (requested ${requestedFrameRateSelection} fps${capabilityHint})`;
+    return `${frameRateMessage} (requested ${startupResult.requestedFrameRateSelection} fps${capabilityHint})`;
   }
 
   return frameRateMessage;
@@ -195,6 +199,7 @@ export function updateAppUi(
   const cameraControlsLocked =
     state.lifecycleState !== "idle" && state.lifecycleState !== "failed";
   const cameraProbeInProgress = domElements.cameraFrameRateSelect.dataset.probeComplete !== "true";
+  domElements.cameraFacingModeSelect.disabled = cameraControlsLocked || cameraProbeInProgress;
   domElements.cameraResolutionSelect.disabled = cameraControlsLocked || cameraProbeInProgress;
   domElements.cameraFrameRateSelect.disabled = cameraControlsLocked || cameraProbeInProgress;
   domElements.probeFrameRatesButton.disabled = cameraControlsLocked || cameraProbeInProgress;

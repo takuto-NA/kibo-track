@@ -30,6 +30,9 @@ export type CameraStartupFailureReason =
  */
 export type CameraFrameRateSelection = "deviceDefault" | `${number}`;
 
+/** Camera facing direction for getUserMedia (`user` = front, `environment` = back). */
+export type CameraFacingModeSelection = "environment" | "user";
+
 /** Successful camera startup result. */
 export interface CameraStartupSuccess {
   readonly success: true;
@@ -44,6 +47,8 @@ export interface CameraStartupSuccess {
   readonly capabilityMinFrameRate: number | null;
   readonly capabilityMaxFrameRate: number | null;
   readonly frameRateMismatch: boolean;
+  readonly requestedFacingModeSelection: CameraFacingModeSelection;
+  readonly actualFacingMode: CameraFacingModeSelection | null;
 }
 
 /** Failed camera startup result. */

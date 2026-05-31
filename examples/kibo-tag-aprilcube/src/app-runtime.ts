@@ -8,6 +8,7 @@ import type {
   Pose,
 } from "kibo-track";
 import type { CameraResolutionPixels } from "./camera-resolution.js";
+import { DEFAULT_CAMERA_FACING_MODE_SELECTION } from "./camera-facing-mode.js";
 import {
   INTRINSICS_REFERENCE_HEIGHT_PIXELS,
   INTRINSICS_REFERENCE_WIDTH_PIXELS,
@@ -17,6 +18,7 @@ import { resolveReferenceCameraIntrinsics, type IntrinsicsSourceLabel } from "./
 import type { KiboTagApriltagInstance } from "./kibo-tag-detector.js";
 import type {
   AppLifecycleState,
+  CameraFacingModeSelection,
   CameraFrameRateSelection,
   OverlayDisplayMode,
   ResolutionSnapshot,
@@ -25,6 +27,7 @@ import type {
 export interface AppDomElements {
   readonly startCameraButton: HTMLButtonElement;
   readonly startDetectorButton: HTMLButtonElement;
+  readonly cameraFacingModeSelect: HTMLSelectElement;
   readonly cameraResolutionSelect: HTMLSelectElement;
   readonly cameraFrameRateSelect: HTMLSelectElement;
   readonly probeFrameRatesButton: HTMLButtonElement;
@@ -63,6 +66,8 @@ export interface AppRuntimeState {
   isProcessingTrackingFrame: boolean;
   poseTracker: PoseTracker;
   overlayDisplayMode: OverlayDisplayMode;
+  requestedCameraFacingModeSelection: CameraFacingModeSelection;
+  actualCameraFacingMode: CameraFacingModeSelection | null;
   requestedCameraResolution: CameraResolutionPixels;
   requestedCameraFrameRateSelection: CameraFrameRateSelection;
   actualCameraFrameRate: number | null;
@@ -75,6 +80,7 @@ export interface AppRuntimeState {
 export function readAppDomElements(): AppDomElements {
   const startCameraButton = document.querySelector<HTMLButtonElement>("#start-camera-button");
   const startDetectorButton = document.querySelector<HTMLButtonElement>("#start-detector-button");
+  const cameraFacingModeSelect = document.querySelector<HTMLSelectElement>("#camera-facing-mode-select");
   const cameraResolutionSelect = document.querySelector<HTMLSelectElement>("#camera-resolution-select");
   const cameraFrameRateSelect = document.querySelector<HTMLSelectElement>("#camera-frame-rate-select");
   const probeFrameRatesButton = document.querySelector<HTMLButtonElement>("#probe-frame-rates-button");
@@ -100,6 +106,7 @@ export function readAppDomElements(): AppDomElements {
   if (
     startCameraButton === null ||
     startDetectorButton === null ||
+    cameraFacingModeSelect === null ||
     cameraResolutionSelect === null ||
     cameraFrameRateSelect === null ||
     probeFrameRatesButton === null ||
@@ -128,6 +135,7 @@ export function readAppDomElements(): AppDomElements {
   return {
     startCameraButton,
     startDetectorButton,
+    cameraFacingModeSelect,
     cameraResolutionSelect,
     cameraFrameRateSelect,
     probeFrameRatesButton,
@@ -171,6 +179,8 @@ export function createInitialAppRuntimeState(): AppRuntimeState {
     isProcessingTrackingFrame: false,
     poseTracker: new PoseTracker(),
     overlayDisplayMode: "cameraWithOverlay",
+    requestedCameraFacingModeSelection: DEFAULT_CAMERA_FACING_MODE_SELECTION,
+    actualCameraFacingMode: null,
     requestedCameraResolution: {
       widthPixels: INTRINSICS_REFERENCE_WIDTH_PIXELS,
       heightPixels: INTRINSICS_REFERENCE_HEIGHT_PIXELS,

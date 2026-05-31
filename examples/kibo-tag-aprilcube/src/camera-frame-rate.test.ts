@@ -9,8 +9,6 @@ import {
   INTRINSICS_REFERENCE_WIDTH_PIXELS,
 } from "./constants.js";
 import {
-  buildCameraFrameRateConstraint,
-  buildCameraVideoConstraints,
   buildFrameRateProbeResultFromMediaStream,
   filterSupportedCameraFrameRateCandidates,
   formatCameraFrameRateProbeMessage,
@@ -20,6 +18,7 @@ import {
   renderCameraFrameRateSelectOptions,
   renderDefaultCameraFrameRateSelectOptions,
 } from "./camera-frame-rate.js";
+import { buildCameraFrameRateConstraint } from "./camera-video-constraints.js";
 
 const REFERENCE_RESOLUTION = {
   widthPixels: INTRINSICS_REFERENCE_WIDTH_PIXELS,
@@ -32,42 +31,6 @@ const VGA_RESOLUTION = {
 };
 
 describe("camera frame-rate helpers", () => {
-  it("omits frameRate for device default selection", () => {
-    expect(buildCameraFrameRateConstraint("deviceDefault")).toBeUndefined();
-    expect(
-      buildCameraVideoConstraints({
-        resolution: REFERENCE_RESOLUTION,
-        frameRateSelection: "deviceDefault",
-      }).frameRate,
-    ).toBeUndefined();
-  });
-
-  it("requests an exact 30 fps band when selected", () => {
-    expect(buildCameraFrameRateConstraint("30")).toEqual({
-      min: CAMERA_FRAME_RATE_30_FPS,
-      ideal: CAMERA_FRAME_RATE_30_FPS,
-      max: CAMERA_FRAME_RATE_30_FPS,
-    });
-  });
-
-  it("requests an exact 60 fps band when selected", () => {
-    expect(buildCameraFrameRateConstraint("60")).toEqual({
-      min: CAMERA_FRAME_RATE_60_FPS,
-      ideal: CAMERA_FRAME_RATE_60_FPS,
-      max: CAMERA_FRAME_RATE_60_FPS,
-    });
-  });
-
-  it("keeps the requested resolution in video constraints", () => {
-    const videoConstraints = buildCameraVideoConstraints({
-      resolution: VGA_RESOLUTION,
-      frameRateSelection: "30",
-    });
-
-    expect(videoConstraints.width).toEqual({ ideal: VGA_RESOLUTION.widthPixels });
-    expect(videoConstraints.height).toEqual({ ideal: VGA_RESOLUTION.heightPixels });
-  });
-
   it("falls back to device default for unknown select values", () => {
     const cameraFrameRateSelect = document.createElement("select");
     cameraFrameRateSelect.innerHTML = `<option value="invalid">invalid</option>`;

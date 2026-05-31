@@ -4,7 +4,17 @@
 import { CAMERA_FRAME_RATE_CANDIDATE_VALUES } from "./constants.js";
 import type { CameraResolutionPixels } from "./camera-resolution.js";
 import { formatCameraResolutionLabel } from "./camera-resolution.js";
-import type { CameraFrameRateSelection } from "./types.js";
+import { stopMediaStreamTracks } from "./camera-media-stream-lifecycle.js";
+import { requestCameraMediaStream } from "./request-camera-media-stream.js";
+import {
+  buildCameraFrameRateConstraint,
+  buildCameraVideoConstraints,
+  readExplicitFrameRateFromSelection,
+} from "./camera-video-constraints.js";
+import type { CameraFacingModeSelection, CameraFrameRateSelection } from "./types.js";
+
+export { buildCameraFrameRateConstraint, buildCameraVideoConstraints } from "./camera-video-constraints.js";
+export type { CameraVideoConstraintInput } from "./camera-video-constraints.js";
 
 /** Tolerance when comparing requested and negotiated frame rates (fps). */
 const FRAME_RATE_MATCH_TOLERANCE_FPS = 0.5;
@@ -24,24 +34,14 @@ export interface CameraFrameRateProbeResult {
   readonly detail: string;
 }
 
+function frameRatesMatch(requestedFrameRate: number, actualFrameRate: number): boolean {
+  return Math.abs(requestedFrameRate - actualFrameRate) <= FRAME_RATE_MATCH_TOLERANCE_FPS;
+}
+
 function parseExplicitFrameRateFromSelection(
   frameRateSelection: CameraFrameRateSelection,
 ): number | null {
-  if (frameRateSelection === "deviceDefault") {
-    return null;
-  }
-
-  const parsedFrameRate = Number(frameRateSelection);
-
-  if (!Number.isFinite(parsedFrameRate) || parsedFrameRate <= 0) {
-    return null;
-  }
-
-  return parsedFrameRate;
-}
-
-function frameRatesMatch(requestedFrameRate: number, actualFrameRate: number): boolean {
-  return Math.abs(requestedFrameRate - actualFrameRate) <= FRAME_RATE_MATCH_TOLERANCE_FPS;
+  return readExplicitFrameRateFromSelection(frameRateSelection);
 }
 
 function readVideoTrackFrameRateCapabilities(
@@ -59,12 +59,6 @@ function readVideoTrackFrameRateCapabilities(
     capabilities.max !== undefined && Number.isFinite(capabilities.max) ? capabilities.max : null;
 
   return [capabilityMinFrameRate, capabilityMaxFrameRate];
-}
-
-function stopMediaStreamTracks(mediaStream: MediaStream): void {
-  for (const track of mediaStream.getTracks()) {
-    track.stop();
-  }
 }
 
 /** Filters candidate fps values that fit within a probed capability range. */
@@ -94,45 +88,6 @@ export function filterSupportedCameraFrameRateCandidates(
 
     return true;
   });
-}
-
-/** Builds optional frameRate constraints from the UI selection. */
-export function buildCameraFrameRateConstraint(
-  frameRateSelection: CameraFrameRateSelection,
-): ConstrainDoubleRange | undefined {
-  const targetFrameRate = parseExplicitFrameRateFromSelection(frameRateSelection);
-
-  if (targetFrameRate === null) {
-    return undefined;
-  }
-
-  return {
-    min: targetFrameRate,
-    ideal: targetFrameRate,
-    max: targetFrameRate,
-  };
-}
-
-export interface CameraVideoConstraintInput {
-  readonly resolution: CameraResolutionPixels;
-  readonly frameRateSelection: CameraFrameRateSelection;
-}
-
-/** Builds video track constraints for camera startup. */
-export function buildCameraVideoConstraints(
-  constraintInput: CameraVideoConstraintInput,
-): MediaTrackConstraints {
-  const videoConstraints: MediaTrackConstraints = {
-    width: { ideal: constraintInput.resolution.widthPixels },
-    height: { ideal: constraintInput.resolution.heightPixels },
-  };
-  const frameRateConstraint = buildCameraFrameRateConstraint(constraintInput.frameRateSelection);
-
-  if (frameRateConstraint !== undefined) {
-    videoConstraints.frameRate = frameRateConstraint;
-  }
-
-  return videoConstraints;
 }
 
 /** Reads the selected frame-rate option from the controls UI. */
@@ -268,6 +223,7 @@ export function buildFrameRateProbeResultFromMediaStream(
  */
 export async function probeCameraFrameRateOptions(
   resolution: CameraResolutionPixels,
+  facingModeSelection: CameraFacingModeSelection,
 ): Promise<CameraFrameRateProbeResult> {
   if (!window.isSecureContext) {
     return {
@@ -292,12 +248,10 @@ export async function probeCameraFrameRateOptions(
   let mediaStream: MediaStream;
 
   try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: resolution.widthPixels },
-        height: { ideal: resolution.heightPixels },
-      },
-      audio: false,
+    mediaStream = await requestCameraMediaStream({
+      resolution,
+      facingModeSelection,
+      frameRateSelection: "deviceDefault",
     });
   } catch (error) {
     const detailMessage = error instanceof Error ? error.message : "Camera permission denied.";

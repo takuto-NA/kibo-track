@@ -58,6 +58,34 @@ Open `http://localhost:5173`.
 3. Click **Start Detector**
 4. Point the camera at the AprilCube with at least two non-coplanar faces visible
 
+## Share on phone (HTTPS)
+
+Mobile browsers require **HTTPS** for camera access when you are not on `localhost`. LAN HTTP (`http://192.168.x.x:5173`) fails with `insecureContext`.
+
+1. Start the LAN HTTPS server:
+
+   ```bash
+   npm run dev:lan
+   ```
+
+2. On the PC, open the **Network** URL Vite prints (for example `https://192.168.1.10:5173`).
+
+3. On your phone (same Wi‑Fi), open the same `https://192.168.x.x:5173` URL.
+
+4. Accept the self-signed certificate warning on first visit.
+
+5. Allow camera permission when prompted, then use **Start Camera** / **Start Detector** as usual.
+
+   On iPhone, choose **Back (environment)** in the **Camera** dropdown (default). If the preview still shows the selfie camera, check Diagnostics for `actualCameraFacingMode`. The app retries several constraint patterns for iOS Safari; a hard refresh before **Start Camera** can help if an old page is cached.
+
+Built preview over HTTPS (after `npm run build`):
+
+```bash
+npm run preview:lan
+```
+
+Self-signed HTTPS triggers a browser warning on first visit; that is expected.
+
 ## AprilCube layout
 
 The example uses this layout (matching [AprilCube](https://github.com/younghyopark/aprilcube) `config.json`):
