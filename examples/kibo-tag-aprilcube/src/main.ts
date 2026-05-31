@@ -48,6 +48,7 @@ import {
   synchronizeOverlayCanvasSize,
   validateResolutionConsistency,
 } from "./resolution-gate.js";
+import { syncViewportCaptureAspectRatio } from "./viewport-layout.js";
 import {
   INTRINSICS_REFERENCE_HEIGHT_PIXELS,
   INTRINSICS_REFERENCE_WIDTH_PIXELS,
@@ -523,6 +524,11 @@ async function handleStartCamera(
   state.cameraFrameRateMismatch = startupResult.frameRateMismatch;
   state.lifecycleState = "cameraReady";
   synchronizeOverlayCanvasSize(domElements.captureCanvas, domElements.overlayCanvas);
+  syncViewportCaptureAspectRatio(
+    domElements.viewportElement,
+    startupResult.videoWidth,
+    startupResult.videoHeight,
+  );
 
   const frameCapture = captureVideoFrameToGrayscale(
     domElements.videoElement,
@@ -868,6 +874,11 @@ function bindApplication(): void {
   });
 
   renderCameraResolutionSelectOptions(domElements.cameraResolutionSelect);
+  syncViewportCaptureAspectRatio(
+    domElements.viewportElement,
+    INTRINSICS_REFERENCE_WIDTH_PIXELS,
+    INTRINSICS_REFERENCE_HEIGHT_PIXELS,
+  );
 
   domElements.cameraResolutionSelect.addEventListener("change", () => {
     if (state.lifecycleState !== "idle" && state.lifecycleState !== "failed") {
@@ -886,6 +897,11 @@ async function refreshCameraCaptureOptions(
   state: AppRuntimeState,
 ): Promise<void> {
   const selectedResolution = readSelectedCameraResolution(domElements.cameraResolutionSelect);
+  syncViewportCaptureAspectRatio(
+    domElements.viewportElement,
+    selectedResolution.widthPixels,
+    selectedResolution.heightPixels,
+  );
 
   domElements.cameraFrameRateSelect.dataset.probeComplete = "false";
   domElements.cameraFrameRateHintElement.textContent = `Probing frame rates at ${formatCameraResolutionLabel(selectedResolution)}…`;

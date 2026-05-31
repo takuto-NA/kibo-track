@@ -29,6 +29,9 @@ export const KIBO_TAG_ARUCO_FAMILY_NAME = "DICT_4X4_100";
 /** bitsCorrected recommended for live ArUco scenes in kibo-tag. */
 export const KIBO_TAG_ARUCO_BITS_CORRECTED = 0;
 
+/** Maximum viewport width in CSS pixels (matches styles.css `#viewport` cap). */
+export const VIEWPORT_MAX_WIDTH_PIXELS = 960;
+
 /** Reference camera intrinsics resolution width in pixels. */
 export const INTRINSICS_REFERENCE_WIDTH_PIXELS = 1280;
 

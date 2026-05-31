@@ -36,6 +36,21 @@ function buildResolutionSnapshot(input: ResolutionGateInput): ResolutionSnapshot
   };
 }
 
+/** Tolerance when comparing reference and capture aspect ratios. */
+const REFERENCE_ASPECT_RATIO_TOLERANCE = 0.001;
+
+function referenceAspectRatioMatchesCapture(
+  referenceWidth: number,
+  referenceHeight: number,
+  captureWidth: number,
+  captureHeight: number,
+): boolean {
+  const referenceAspectRatio = referenceWidth / referenceHeight;
+  const captureAspectRatio = captureWidth / captureHeight;
+
+  return Math.abs(referenceAspectRatio - captureAspectRatio) <= REFERENCE_ASPECT_RATIO_TOLERANCE;
+}
+
 /** Scales reference-resolution intrinsics to the current capture resolution. */
 export function scaleCameraIntrinsicsToCaptureResolution(
   referenceCameraIntrinsics: ReferenceCameraIntrinsics,
@@ -45,10 +60,27 @@ export function scaleCameraIntrinsicsToCaptureResolution(
   const scaleX = captureWidth / referenceCameraIntrinsics.referenceWidth;
   const scaleY = captureHeight / referenceCameraIntrinsics.referenceHeight;
   const sourceIntrinsics = referenceCameraIntrinsics.intrinsics;
+  const aspectRatioMatches = referenceAspectRatioMatchesCapture(
+    referenceCameraIntrinsics.referenceWidth,
+    referenceCameraIntrinsics.referenceHeight,
+    captureWidth,
+    captureHeight,
+  );
 
+  if (aspectRatioMatches) {
+    return {
+      focalLengthX: sourceIntrinsics.focalLengthX * scaleX,
+      focalLengthY: sourceIntrinsics.focalLengthY * scaleY,
+      principalPointX: sourceIntrinsics.principalPointX * scaleX,
+      principalPointY: sourceIntrinsics.principalPointY * scaleY,
+    };
+  }
+
+  // Guard: capture aspect differs from the calibration reference (mode switch, not a resize).
+  // Keep square pixels by scaling both focal lengths with the width ratio.
   return {
     focalLengthX: sourceIntrinsics.focalLengthX * scaleX,
-    focalLengthY: sourceIntrinsics.focalLengthY * scaleY,
+    focalLengthY: sourceIntrinsics.focalLengthY * scaleX,
     principalPointX: sourceIntrinsics.principalPointX * scaleX,
     principalPointY: sourceIntrinsics.principalPointY * scaleY,
   };

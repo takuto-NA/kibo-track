@@ -6,19 +6,18 @@ import {
   scaleCameraIntrinsicsToCaptureResolution,
   validateResolutionConsistency,
 } from "./resolution-gate.js";
+import {
+  OVERLAY_REGRESSION_CAPTURE_HEIGHT_PIXELS,
+  OVERLAY_REGRESSION_CAPTURE_WIDTH_PIXELS,
+  OVERLAY_REGRESSION_LEGACY_FOCAL_LENGTH_X_PIXELS,
+  OVERLAY_REGRESSION_LEGACY_FOCAL_LENGTH_Y_PIXELS,
+  OVERLAY_REGRESSION_REFERENCE_CAMERA_INTRINSICS,
+  scaleCameraIntrinsicsLegacyResizeOnly,
+} from "./test-helpers/overlay-regression-fixtures.js";
 import type { ReferenceCameraIntrinsics } from "./types.js";
 
-const referenceCameraIntrinsics: ReferenceCameraIntrinsics = {
-  referenceWidth: 1280,
-  referenceHeight: 720,
-  isPlaceholder: true,
-  intrinsics: {
-    focalLengthX: 900,
-    focalLengthY: 900,
-    principalPointX: 640,
-    principalPointY: 360,
-  },
-};
+const referenceCameraIntrinsics: ReferenceCameraIntrinsics =
+  OVERLAY_REGRESSION_REFERENCE_CAMERA_INTRINSICS;
 
 describe("scaleCameraIntrinsicsToCaptureResolution", () => {
   it("scales intrinsics to the capture resolution", () => {
@@ -54,9 +53,50 @@ describe("scaleCameraIntrinsicsToCaptureResolution", () => {
     );
 
     expect(scaledIntrinsics.focalLengthX).toBeCloseTo(350);
-    expect(scaledIntrinsics.focalLengthY).toBeCloseTo(466.666, 2);
+    expect(scaledIntrinsics.focalLengthY).toBeCloseTo(350);
     expect(scaledIntrinsics.principalPointX).toBeCloseTo(320);
     expect(scaledIntrinsics.principalPointY).toBeCloseTo(240);
+  });
+
+  it("keeps square pixels when capture aspect differs from the calibration reference", () => {
+    const scaledIntrinsics = scaleCameraIntrinsicsToCaptureResolution(
+      referenceCameraIntrinsics,
+      OVERLAY_REGRESSION_CAPTURE_WIDTH_PIXELS,
+      OVERLAY_REGRESSION_CAPTURE_HEIGHT_PIXELS,
+    );
+
+    expect(scaledIntrinsics.focalLengthX).toBeCloseTo(450);
+    expect(scaledIntrinsics.focalLengthY).toBeCloseTo(450);
+    expect(scaledIntrinsics.focalLengthX).toBe(scaledIntrinsics.focalLengthY);
+  });
+
+  it("regression: reproduces legacy anisotropic fy=600 at 640x480 from 1280x720 ref", () => {
+    const legacyIntrinsics = scaleCameraIntrinsicsLegacyResizeOnly(
+      referenceCameraIntrinsics,
+      OVERLAY_REGRESSION_CAPTURE_WIDTH_PIXELS,
+      OVERLAY_REGRESSION_CAPTURE_HEIGHT_PIXELS,
+    );
+
+    expect(legacyIntrinsics.focalLengthX).toBeCloseTo(OVERLAY_REGRESSION_LEGACY_FOCAL_LENGTH_X_PIXELS);
+    expect(legacyIntrinsics.focalLengthY).toBeCloseTo(OVERLAY_REGRESSION_LEGACY_FOCAL_LENGTH_Y_PIXELS);
+    expect(OVERLAY_REGRESSION_LEGACY_FOCAL_LENGTH_Y_PIXELS).toBeCloseTo(600);
+  });
+
+  // Revert guard (T5): swapping production scaling for scaleCameraIntrinsicsLegacyResizeOnly fails here.
+  it("regression: current scaling must not match legacy anisotropic fy at aspect mismatch", () => {
+    const scaledIntrinsics = scaleCameraIntrinsicsToCaptureResolution(
+      referenceCameraIntrinsics,
+      OVERLAY_REGRESSION_CAPTURE_WIDTH_PIXELS,
+      OVERLAY_REGRESSION_CAPTURE_HEIGHT_PIXELS,
+    );
+    const legacyIntrinsics = scaleCameraIntrinsicsLegacyResizeOnly(
+      referenceCameraIntrinsics,
+      OVERLAY_REGRESSION_CAPTURE_WIDTH_PIXELS,
+      OVERLAY_REGRESSION_CAPTURE_HEIGHT_PIXELS,
+    );
+
+    expect(scaledIntrinsics.focalLengthY).not.toBeCloseTo(legacyIntrinsics.focalLengthY);
+    expect(scaledIntrinsics.focalLengthY).toBe(scaledIntrinsics.focalLengthX);
   });
 });
 

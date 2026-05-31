@@ -23,6 +23,7 @@ import {
   POSE_AXIS_STROKE_WIDTH_PX,
   WIREFRAME_ONLY_VIEWPORT_BACKGROUND_COLOR,
 } from "./constants.js";
+import { synchronizeOverlayCanvasSize } from "./resolution-gate.js";
 import type { OverlayDisplayMode } from "./types.js";
 
 export interface OverlayDrawInput {
@@ -221,12 +222,20 @@ export function drawOverlay(input: OverlayDrawInput): void {
 
   const overlayDisplayMode = input.overlayDisplayMode ?? "cameraWithOverlay";
 
+  synchronizeOverlayCanvasSize(input.captureCanvas, input.overlayCanvas);
+
   canvasContext.clearRect(0, 0, input.overlayCanvas.width, input.overlayCanvas.height);
 
   if (overlayDisplayMode === "wireframeOnly") {
     fillWireframeOnlyBackground(canvasContext, input.overlayCanvas);
   } else {
-    canvasContext.drawImage(input.captureCanvas, 0, 0);
+    canvasContext.drawImage(
+      input.captureCanvas,
+      0,
+      0,
+      input.overlayCanvas.width,
+      input.overlayCanvas.height,
+    );
     drawMarkerOutlines(canvasContext, input.detectedMarkers);
   }
 
