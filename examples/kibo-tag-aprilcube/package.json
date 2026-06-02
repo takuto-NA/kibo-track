@@ -12,6 +12,7 @@
     "preview:lan": "vite preview --host --mode lan",
     "preview:pages": "vite preview --host 127.0.0.1 --port 4173 --mode pages",
     "verify:runtime-artifacts": "node scripts/verify-runtime-artifacts.mjs",
+    "verify:pages-build": "node scripts/verify-pages-build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

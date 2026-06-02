@@ -23,6 +23,11 @@ export interface BrowserDiagnosticsCollector {
   writeFailureArtifacts(outputDirectory: string, testName: string): Promise<void>;
 }
 
+/** Sanitizes a Playwright test title for use as a filesystem artifact name. */
+function sanitizeArtifactFileStem(testName: string): string {
+  return testName.replace(/[<>:"/\\|?*]/g, "-");
+}
+
 export function createBrowserDiagnosticsCollector(): BrowserDiagnosticsCollector {
   const snapshot: BrowserDiagnosticsSnapshot = {
     consoleMessages: [],
@@ -59,7 +64,8 @@ export function createBrowserDiagnosticsCollector(): BrowserDiagnosticsCollector
         const isScriptOrWasm =
           responseUrl.endsWith(".js") ||
           responseUrl.endsWith(".wasm") ||
-          responseUrl.includes("/vendor/kibo-tag/");
+          responseUrl.includes("/vendor/kibo-tag/") ||
+          responseUrl.includes("/vendor/comlink/");
 
         if (isScriptOrWasm && !response.ok()) {
           snapshot.failedResponses.push(`${response.status()} ${responseUrl}`);
@@ -95,7 +101,10 @@ export function createBrowserDiagnosticsCollector(): BrowserDiagnosticsCollector
     },
     async writeFailureArtifacts(outputDirectory: string, testName: string) {
       await fs.mkdir(outputDirectory, { recursive: true });
-      const artifactPath = path.join(outputDirectory, `${testName}-diagnostics.json`);
+      const artifactPath = path.join(
+        outputDirectory,
+        `${sanitizeArtifactFileStem(testName)}-diagnostics.json`,
+      );
       await fs.writeFile(artifactPath, JSON.stringify(snapshot, null, 2), "utf8");
     },
   };

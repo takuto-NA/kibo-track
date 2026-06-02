@@ -96,7 +96,7 @@ Self-signed HTTPS triggers a browser warning on first visit; that is expected.
 
 The live camera demo is published to GitHub Pages over trusted HTTPS:
 
-`https://takuto-NA.github.io/kibo-track/`
+`https://takuto-na.github.io/kibo-track/`
 
 Requirements for visitors:
 

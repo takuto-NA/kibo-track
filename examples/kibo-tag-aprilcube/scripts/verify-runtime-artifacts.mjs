@@ -11,6 +11,7 @@ const exampleRootDirectory = path.resolve(currentDirectory, "..");
 const REQUIRED_RUNTIME_ARTIFACT_RELATIVE_PATHS = [
   "public/vendor/kibo-tag/apriltag.js",
   "public/vendor/kibo-tag/apriltag_wasm.js",
+  "public/vendor/kibo-tag/apriltag_wasm.wasm",
   "public/vendor/comlink/comlink.js",
 ];
 

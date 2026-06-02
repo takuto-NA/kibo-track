@@ -5,6 +5,7 @@ on:
     branches:
       - feature/githubpages
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -59,6 +60,10 @@ jobs:
       - name: Build GitHub Pages demo
         working-directory: examples/kibo-tag-aprilcube
         run: npm run build:pages
+
+      - name: Verify Pages build output
+        working-directory: examples/kibo-tag-aprilcube
+        run: npm run verify:pages-build
 
       - name: Install Playwright Chromium
         working-directory: examples/kibo-tag-aprilcube

@@ -44,6 +44,8 @@ test.describe("GitHub Pages demo browser gate", () => {
     });
 
     await readDiagnosticsFromPage(page, diagnosticsCollector);
+    expect(diagnosticsCollector.snapshot.diagnosticsText).not.toContain("insecureContext");
+    expect(diagnosticsCollector.snapshot.diagnosticsText).not.toContain("wasmMissing");
     diagnosticsCollector.assertClean();
   });
 });
