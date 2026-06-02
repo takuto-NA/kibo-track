@@ -7,12 +7,16 @@
     "dev": "vite",
     "dev:lan": "vite --host --mode lan",
     "build": "tsc --noEmit && vite build",
+    "build:pages": "tsc --noEmit && vite build --mode pages",
     "preview": "vite preview",
     "preview:lan": "vite preview --host --mode lan",
+    "preview:pages": "vite preview --host 127.0.0.1 --port 4173 --mode pages",
+    "verify:runtime-artifacts": "node scripts/verify-runtime-artifacts.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "cross-env RUN_BROWSER_TESTS=1 playwright test",
+    "test:browser:pages": "cross-env RUN_PAGES_BROWSER_TESTS=1 playwright test e2e/pages-demo.spec.ts",
     "test:camera:real": "cross-env RUN_REAL_CAMERA=1 RUN_BROWSER_TESTS=1 playwright test e2e/real-camera.spec.ts --headed"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 /**
  * Named constants for the kibo-tag AprilCube browser example.
  */
+import { buildPublicAssetPath } from "./public-asset-path.js";
 
 /** Maximum attempts to capture a non-empty first video frame. */
 export const FIRST_FRAME_CAPTURE_MAX_ATTEMPTS = 30;
@@ -17,11 +18,11 @@ export const MINIMUM_TAG_DECISION_MARGIN = 50;
 /** Configured AprilCube marker IDs for the example cube. */
 export const APRILCUBE_MARKER_IDS = [0, 1, 2, 3, 4, 5] as const;
 
-/** Path to the kibo-tag Web Worker script relative to the site root. */
-export const KIBO_TAG_WORKER_SCRIPT_PATH = "/vendor/kibo-tag/apriltag.js";
+/** Path to the kibo-tag Web Worker script relative to the current Vite base URL. */
+export const KIBO_TAG_WORKER_SCRIPT_PATH = buildPublicAssetPath("vendor/kibo-tag/apriltag.js");
 
 /** Path to the kibo-tag Emscripten WASM bundle loaded by the worker via importScripts. */
-export const KIBO_TAG_WASM_MODULE_PATH = "/vendor/kibo-tag/apriltag_wasm.js";
+export const KIBO_TAG_WASM_MODULE_PATH = buildPublicAssetPath("vendor/kibo-tag/apriltag_wasm.js");
 
 /** kibo-tag ArUco dictionary name for DICT_4X4_100. */
 export const KIBO_TAG_ARUCO_FAMILY_NAME = "DICT_4X4_100";

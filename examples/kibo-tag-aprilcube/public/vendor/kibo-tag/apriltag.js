@@ -1,5 +1,5 @@
 importScripts('apriltag_wasm.js');
-importScripts("https://unpkg.com/comlink/dist/umd/comlink.js");
+importScripts('../comlink/comlink.js');
 
 const BROWSER_DEMO_MAX_DETECTIONS = 32;
 const BROWSER_DEMO_RETURN_POSE = 1;

@@ -9,7 +9,9 @@ const FAKE_CAMERA_LAUNCH_ARGS = [
 ];
 
 const browserTestsEnabled = Boolean(process.env.RUN_BROWSER_TESTS);
+const pagesBrowserTestsEnabled = Boolean(process.env.RUN_PAGES_BROWSER_TESTS);
 const realCameraTestsEnabled = Boolean(process.env.RUN_REAL_CAMERA);
+const GITHUB_PAGES_PROJECT_SITE_BASE_PATH = "/kibo-track/";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -19,11 +21,27 @@ export default defineConfig({
   reporter: "list",
   outputDir: "./test-results/playwright",
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: pagesBrowserTestsEnabled
+      ? `http://127.0.0.1:4173${GITHUB_PAGES_PROJECT_SITE_BASE_PATH}`
+      : "http://127.0.0.1:4173",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [
+    ...(pagesBrowserTestsEnabled
+      ? [
+          {
+            name: "chromium-pages-demo",
+            testMatch: /pages-demo\.spec\.ts/,
+            use: {
+              ...devices["Desktop Chrome"],
+              launchOptions: {
+                args: FAKE_CAMERA_LAUNCH_ARGS,
+              },
+            },
+          },
+        ]
+      : []),
     ...(browserTestsEnabled
       ? [
           {
@@ -59,12 +77,16 @@ export default defineConfig({
         ]
       : []),
   ],
-  webServer: browserTestsEnabled || realCameraTestsEnabled
+  webServer: browserTestsEnabled || pagesBrowserTestsEnabled || realCameraTestsEnabled
     ? {
-        command: "npm run build && npm run preview -- --host 127.0.0.1 --port 4173",
-        url: "http://127.0.0.1:4173",
+        command: pagesBrowserTestsEnabled
+          ? "npm run build:pages && npm run preview:pages"
+          : "npm run build && npm run preview -- --host 127.0.0.1 --port 4173",
+        url: pagesBrowserTestsEnabled
+          ? `http://127.0.0.1:4173${GITHUB_PAGES_PROJECT_SITE_BASE_PATH}`
+          : "http://127.0.0.1:4173",
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: 180_000,
       }
     : undefined,
 });

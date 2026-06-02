@@ -27,11 +27,17 @@ cd examples/kibo-tag-aprilcube
 npm install
 ```
 
-Copy kibo-tag browser artifacts into the example vendor folder:
+Copy kibo-tag browser artifacts into the example vendor folder if they are not already present:
 
 ```bash
 cp /path/to/kibo-tag/html/apriltag.js public/vendor/kibo-tag/
 cp /path/to/kibo-tag/html/apriltag_wasm.js public/vendor/kibo-tag/
+```
+
+Comlink is vendored locally at `public/vendor/comlink/comlink.js` for the worker script. Verify all runtime artifacts with:
+
+```bash
+npm run verify:runtime-artifacts
 ```
 
 The worker script uses `importScripts` and must be loaded with `new Worker(...)`, not as a page `<script>`.
@@ -85,6 +91,39 @@ npm run preview:lan
 ```
 
 Self-signed HTTPS triggers a browser warning on first visit; that is expected.
+
+## Public demo (GitHub Pages)
+
+The live camera demo is published to GitHub Pages over trusted HTTPS:
+
+`https://takuto-NA.github.io/kibo-track/`
+
+Requirements for visitors:
+
+- A phone or PC browser with camera permission
+- A printed AprilCube using this example layout (`DICT_4X4_100`, marker IDs `0..5`)
+
+Usage:
+
+1. Open the public URL above
+2. Click **Start Camera** and allow camera access
+3. Click **Start Detector**
+4. Point the camera at the AprilCube with at least two non-coplanar faces visible
+
+Deployment:
+
+- Pushes to `feature/githubpages` or `main` run [`.github/workflows/deploy-demo.yml`](../../.github/workflows/deploy-demo.yml)
+- The workflow verifies runtime artifacts, builds the Pages demo, runs a Pages-like browser smoke test, and deploys `examples/kibo-tag-aprilcube/dist`
+- After merge, `main` pushes continue to update the same public URL automatically
+
+Local Pages preview:
+
+```bash
+npm run build:pages
+npm run preview:pages
+```
+
+Open `http://127.0.0.1:4173/kibo-track/`.
 
 ## AprilCube layout
 

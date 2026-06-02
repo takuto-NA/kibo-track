@@ -10,11 +10,23 @@ import { createServeRepositoryExamplesDataPlugin } from "./vite-plugin-serve-exa
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRootDirectory = path.resolve(currentDirectory, "../..");
 const DEMO_LAN_VITE_MODE = "lan";
+const DEMO_PAGES_VITE_MODE = "pages";
+const GITHUB_PAGES_PROJECT_SITE_BASE_PATH = "/kibo-track/";
 
 export default defineConfig(({ mode }) => {
   const isDemoLanMode = mode === DEMO_LAN_VITE_MODE;
+  const isDemoPagesMode = mode === DEMO_PAGES_VITE_MODE;
+  const pagesRollupInput: Record<string, string> = {
+    main: path.resolve(currentDirectory, "index.html"),
+  };
+  const defaultRollupInput: Record<string, string> = {
+    main: path.resolve(currentDirectory, "index.html"),
+    staticImageVerify: path.resolve(currentDirectory, "static-image-verify.html"),
+  };
+  const rollupInput = isDemoPagesMode ? pagesRollupInput : defaultRollupInput;
 
   return {
+    base: isDemoPagesMode ? GITHUB_PAGES_PROJECT_SITE_BASE_PATH : "/",
     resolve: {
       alias: {
         "kibo-track": path.resolve(repositoryRootDirectory, "src/index.ts"),
@@ -26,10 +38,7 @@ export default defineConfig(({ mode }) => {
     ],
     build: {
       rollupOptions: {
-        input: {
-          main: path.resolve(currentDirectory, "index.html"),
-          staticImageVerify: path.resolve(currentDirectory, "static-image-verify.html"),
-        },
+        input: rollupInput,
       },
     },
     server: {
