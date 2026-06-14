@@ -8,6 +8,7 @@ import {
   APRILCUBE_RIGHT_MARKER_ID,
   STANDARD_APRILCUBE_CONFIG,
 } from "../fixtures/aprilcube-config.js";
+import { STICK_1X1X6_APRILCUBE_CONFIG } from "../fixtures/stick-1x1x6-aprilcube-config.js";
 
 describe("AprilCube config validation", () => {
   it("accepts a valid multi-face configuration", () => {
@@ -32,7 +33,7 @@ describe("AprilCube config validation", () => {
     ).toBe(false);
   });
 
-  it("rejects duplicate face assignment", () => {
+  it("rejects duplicate face assignment for legacy face-only configs", () => {
     expect(
       isValidAprilCubeConfig({
         cubeSize: 0.2,
@@ -64,5 +65,9 @@ describe("AprilCube config validation", () => {
         },
       }),
     ).toBe(false);
+  });
+
+  it("accepts stick 1x1x6 with multiple markers on the same face when cuboidLayout is present", () => {
+    expect(isValidAprilCubeConfig(STICK_1X1X6_APRILCUBE_CONFIG)).toBe(true);
   });
 });

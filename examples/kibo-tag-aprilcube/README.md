@@ -140,6 +140,30 @@ The example uses this layout (matching [AprilCube](https://github.com/younghyopa
 
 Pose estimation uses **tag corner 3D** (`cuboidLayout` on `AprilCubeConfig`), not full face outer corners. This matches AprilCube detector geometry and kibo-tag tag detections.
 
+## Official AprilCube config.json
+
+The example defaults to the built-in `1x1x1_24_cube` layout above. You can load any **AprilCube cuboid** `config.json` from the file picker in the UI, for example:
+
+- `aprilcube/models/stick_1x1x6/config.json`
+- `aprilcube/models/1x1x1_24_cube/config.json`
+- `aprilcube/models/6x3x3_18_cube/config.json`
+
+After loading, the status line shows `dict`, `tags`, and `box=...mm`. The detector filter, pose config, and wireframe box dimensions follow the loaded file.
+
+Library API:
+
+```typescript
+import { parseAprilCubeCuboidConfigJson } from "kibo-track";
+
+const parseResult = parseAprilCubeCuboidConfigJson(officialConfigJson);
+```
+
+Schema v2 targets with explicit `markers[].corners_mm` (L-shape voxel models) are rejected with `unsupportedSchema`.
+
+Static verifier optional query:
+
+`static-image-verify.html?config=/aprilcube-fixtures/stick-1x1x6-config.json&image=...`
+
 ## Corner order
 
 Tag 3D corners follow OpenCV / AprilCube `[TL, TR, BR, BL]` after adapter permutation.

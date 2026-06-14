@@ -30,7 +30,11 @@ describe("convertKiboTagDetectionsToMarkerCorners", () => {
       },
     ];
 
-    const markerCorners = convertKiboTagDetectionsToMarkerCorners(detections, 50);
+    const markerCorners = convertKiboTagDetectionsToMarkerCorners(
+      detections,
+      new Set([0, 1, 2, 3, 4, 5]),
+      50,
+    );
 
     expect(markerCorners).toHaveLength(1);
     expect(markerCorners[0]?.id).toBe(4);
@@ -56,7 +60,33 @@ describe("convertKiboTagDetectionsToMarkerCorners", () => {
       },
     ];
 
-    const markerCorners = convertKiboTagDetectionsToMarkerCorners(detections, 50);
+    const markerCorners = convertKiboTagDetectionsToMarkerCorners(
+      detections,
+      new Set([0, 1, 2, 3, 4, 5]),
+      50,
+    );
+    expect(markerCorners).toHaveLength(0);
+  });
+
+  it("filters detections outside configured tag IDs", () => {
+    const detections: KiboTagDetection[] = [
+      {
+        id: 4,
+        decision_margin: 80,
+        corners: [
+          { x: 10, y: 20 },
+          { x: 30, y: 20 },
+          { x: 30, y: 40 },
+          { x: 10, y: 40 },
+        ],
+      },
+    ];
+
+    const markerCorners = convertKiboTagDetectionsToMarkerCorners(
+      detections,
+      new Set([24, 25]),
+      50,
+    );
     expect(markerCorners).toHaveLength(0);
   });
 });

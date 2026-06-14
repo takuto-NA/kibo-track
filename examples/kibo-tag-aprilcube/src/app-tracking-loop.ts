@@ -2,17 +2,12 @@
  * Camera-frame tracking loop: detect markers, estimate pose, draw overlay.
  */
 import { estimateAprilCubePose, type Pose } from "kibo-track";
-import {
-  buildAprilCubeConfigFromLayoutJson,
-  EXAMPLE_APRILCUBE_LAYOUT_JSON,
-} from "./aprilcube-config.js";
 import { captureVideoFrameToGrayscale } from "./camera.js";
 import { undistortDetectedMarkers } from "./camera-distortion.js";
 import { detectAprilCubeMarkers } from "./kibo-tag-detector.js";
 import type { AppDomElements, AppRuntimeState } from "./app-runtime.js";
 import { updateAppUi } from "./app-ui-text.js";
 import { renderOverlayFrames } from "./app-overlay-session.js";
-import { readCornerOrderFromSelectValue } from "./read-corner-order-selection.js";
 
 function stopTrackingLoop(state: AppRuntimeState): void {
   if (state.animationFrameIdentifier !== null) {
@@ -38,12 +33,15 @@ async function runTrackingFrame(
     return;
   }
 
+  const loadedConfig = state.loadedAprilCubeModelConfig;
+
   try {
     state.detectedMarkers = await detectAprilCubeMarkers(
       state.detector,
       frameCapture.grayscaleBuffer,
       frameCapture.captureWidth,
       frameCapture.captureHeight,
+      loadedConfig.configuredTagIdSet,
     );
   } catch (error) {
     state.lifecycleState = "failed";
@@ -59,10 +57,7 @@ async function runTrackingFrame(
     return;
   }
 
-  const aprilCubeConfig = buildAprilCubeConfigFromLayoutJson(
-    EXAMPLE_APRILCUBE_LAYOUT_JSON,
-    readCornerOrderFromSelectValue(domElements.cornerOrderSelect.value),
-  );
+  const aprilCubeConfig = loadedConfig.aprilCubeConfig;
 
   if (state.detectedMarkers.length === 0) {
     const missedFrameUpdate = state.poseTracker.updateFromMissedFrame();
@@ -74,7 +69,6 @@ async function runTrackingFrame(
       state,
       [],
       missedFrameUpdate.trackedPose,
-      aprilCubeConfig.cubeSize,
     );
 
     updateAppUi(
@@ -132,7 +126,6 @@ async function runTrackingFrame(
     state,
     state.detectedMarkers,
     overlayPose,
-    aprilCubeConfig.cubeSize,
   );
 
   updateAppUi(

@@ -18,6 +18,11 @@ import { resolveReferenceCameraIntrinsics, type IntrinsicsSourceLabel } from "./
 import type { KiboTagApriltagInstance } from "./kibo-tag-detector.js";
 import type { ThreeModelOverlaySession } from "./three-model-overlay.js";
 import { DEFAULT_OVERLAY_DISPLAY_MODE } from "./overlay-display-mode.js";
+import type { LoadedAprilCubeModelConfig } from "./load-aprilcube-config-file.js";
+import {
+  createDefaultLoadedAprilCubeModelConfig,
+  readDefaultAprilCubeConfigJsonText,
+} from "./loaded-aprilcube-model-config.js";
 import type {
   AppLifecycleState,
   CameraFacingModeSelection,
@@ -39,6 +44,8 @@ export interface AppDomElements {
   readonly applyCalibrationButton: HTMLButtonElement;
   readonly clearCalibrationButton: HTMLButtonElement;
   readonly calibrationStatusElement: HTMLElement;
+  readonly aprilCubeConfigFileInput: HTMLInputElement;
+  readonly aprilCubeConfigStatusElement: HTMLElement;
   readonly appStatusElement: HTMLElement;
   readonly cameraStatusElement: HTMLElement;
   readonly resolutionStatusElement: HTMLElement;
@@ -80,6 +87,9 @@ export interface AppRuntimeState {
   cameraFrameRateCapabilityMin: number | null;
   cameraFrameRateCapabilityMax: number | null;
   cameraFrameRateMismatch: boolean;
+  loadedAprilCubeModelConfig: LoadedAprilCubeModelConfig;
+  loadedAprilCubeConfigJsonText: string;
+  aprilCubeConfigLoadError: string | null;
 }
 
 /** Reads required DOM elements for the demo application. */
@@ -96,6 +106,8 @@ export function readAppDomElements(): AppDomElements {
   const applyCalibrationButton = document.querySelector<HTMLButtonElement>("#apply-calibration-button");
   const clearCalibrationButton = document.querySelector<HTMLButtonElement>("#clear-calibration-button");
   const calibrationStatusElement = document.querySelector<HTMLElement>("#calibration-status");
+  const aprilCubeConfigFileInput = document.querySelector<HTMLInputElement>("#aprilcube-config-file-input");
+  const aprilCubeConfigStatusElement = document.querySelector<HTMLElement>("#aprilcube-config-status");
   const appStatusElement = document.querySelector<HTMLElement>("#app-status");
   const cameraStatusElement = document.querySelector<HTMLElement>("#camera-status");
   const resolutionStatusElement = document.querySelector<HTMLElement>("#resolution-status");
@@ -123,6 +135,8 @@ export function readAppDomElements(): AppDomElements {
     applyCalibrationButton === null ||
     clearCalibrationButton === null ||
     calibrationStatusElement === null ||
+    aprilCubeConfigFileInput === null ||
+    aprilCubeConfigStatusElement === null ||
     appStatusElement === null ||
     cameraStatusElement === null ||
     resolutionStatusElement === null ||
@@ -153,6 +167,8 @@ export function readAppDomElements(): AppDomElements {
     applyCalibrationButton,
     clearCalibrationButton,
     calibrationStatusElement,
+    aprilCubeConfigFileInput,
+    aprilCubeConfigStatusElement,
     appStatusElement,
     cameraStatusElement,
     resolutionStatusElement,
@@ -172,6 +188,7 @@ export function readAppDomElements(): AppDomElements {
 /** Creates the initial demo runtime state before camera startup. */
 export function createInitialAppRuntimeState(): AppRuntimeState {
   const resolvedIntrinsics = resolveReferenceCameraIntrinsics();
+  const defaultLoadedAprilCubeModelConfig = createDefaultLoadedAprilCubeModelConfig();
 
   return {
     lifecycleState: "idle",
@@ -202,5 +219,8 @@ export function createInitialAppRuntimeState(): AppRuntimeState {
     cameraFrameRateCapabilityMin: null,
     cameraFrameRateCapabilityMax: null,
     cameraFrameRateMismatch: false,
+    loadedAprilCubeModelConfig: defaultLoadedAprilCubeModelConfig,
+    loadedAprilCubeConfigJsonText: readDefaultAprilCubeConfigJsonText(),
+    aprilCubeConfigLoadError: null,
   };
 }

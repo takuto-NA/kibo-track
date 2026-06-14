@@ -1,15 +1,13 @@
 /**
  * Static AprilCube image verification: detect markers, estimate pose, draw wireframe overlay.
  */
-import { estimateAprilCubePose } from "kibo-track";
+import { estimateAprilCubePose, type AprilCubeConfig } from "kibo-track";
 import type {
   DetectedMarkerCorners,
   EstimateAprilCubePoseSuccess,
 } from "kibo-track";
-import {
-  buildAprilCubeConfigFromLayoutJson,
-  EXAMPLE_APRILCUBE_LAYOUT_JSON,
-} from "./aprilcube-config.js";
+import { loadAprilCubeConfigFromUrl } from "./load-aprilcube-config-file.js";
+import { createDefaultLoadedAprilCubeModelConfig } from "./loaded-aprilcube-model-config.js";
 import { createPlaceholderReferenceCameraIntrinsics } from "./reference-intrinsics.js";
 import { scaleCameraIntrinsicsToCaptureResolution } from "./resolution-gate.js";
 import { parseCalibrationJson } from "./parse-calibration-json.js";
@@ -54,6 +52,43 @@ function readImageUrlFromQueryString(): string {
   }
 
   return imageUrl;
+}
+
+async function readAprilCubeConfigFromQueryString(
+  cornerOrder: ReturnType<typeof readCornerOrderFromQueryValue>,
+): Promise<{
+  readonly aprilCubeConfig: AprilCubeConfig;
+  readonly tagIds: readonly number[];
+  readonly configuredTagIdSet: ReadonlySet<number>;
+  readonly boxDimensionsMeters: readonly [number, number, number];
+  readonly kiboTagFamilyName: string;
+}> {
+  const configUrl = new URLSearchParams(window.location.search).get("config");
+  const defaultLoadedConfig = createDefaultLoadedAprilCubeModelConfig(cornerOrder);
+
+  if (configUrl === null || configUrl.trim().length === 0) {
+    return {
+      aprilCubeConfig: defaultLoadedConfig.aprilCubeConfig,
+      tagIds: defaultLoadedConfig.tagIds,
+      configuredTagIdSet: defaultLoadedConfig.configuredTagIdSet,
+      boxDimensionsMeters: defaultLoadedConfig.boxDimensionsMeters,
+      kiboTagFamilyName: defaultLoadedConfig.kiboTagFamilyName,
+    };
+  }
+
+  const loadResult = await loadAprilCubeConfigFromUrl(configUrl, cornerOrder);
+
+  if (!loadResult.success) {
+    throw new Error(loadResult.detail);
+  }
+
+  return {
+    aprilCubeConfig: loadResult.loadedConfig.aprilCubeConfig,
+    tagIds: loadResult.loadedConfig.tagIds,
+    configuredTagIdSet: loadResult.loadedConfig.configuredTagIdSet,
+    boxDimensionsMeters: loadResult.loadedConfig.boxDimensionsMeters,
+    kiboTagFamilyName: loadResult.loadedConfig.kiboTagFamilyName,
+  };
 }
 
 async function readCalibrationFromQueryString(
@@ -139,7 +174,12 @@ async function runStaticImageVerification(): Promise<void> {
   overlayCanvas.height = frameCapture.captureHeight;
 
   statusElement.textContent = "loading-detector";
-  const detectorLoadResult = await initializeKiboTagDetector();
+  const queryParameters = new URLSearchParams(window.location.search);
+  const cornerOrder = readCornerOrderFromQueryValue(queryParameters.get("cornerOrder"));
+  const loadedAprilCubeConfig = await readAprilCubeConfigFromQueryString(cornerOrder);
+  const detectorLoadResult = await initializeKiboTagDetector(
+    loadedAprilCubeConfig.kiboTagFamilyName,
+  );
 
   if (!detectorLoadResult.success) {
     writeVerificationOutput(statusElement, diagnosticsElement, {
@@ -164,6 +204,7 @@ async function runStaticImageVerification(): Promise<void> {
     frameCapture.grayscaleBuffer,
     frameCapture.captureWidth,
     frameCapture.captureHeight,
+    loadedAprilCubeConfig.configuredTagIdSet,
   );
 
   const scaledCameraIntrinsics = scaleCameraIntrinsicsToCaptureResolution(
@@ -175,7 +216,6 @@ async function runStaticImageVerification(): Promise<void> {
     frameCapture.captureWidth,
     frameCapture.captureHeight,
   );
-  const queryParameters = new URLSearchParams(window.location.search);
   const focalLengthOverrideText = queryParameters.get("focalLengthPixels");
   const focalLengthOverride =
     focalLengthOverrideText === null ? null : Number(focalLengthOverrideText);
@@ -192,10 +232,7 @@ async function runStaticImageVerification(): Promise<void> {
         }
       : scaledCameraIntrinsics);
   const distortionCoefficients = calibratedCamera?.distortionCoefficients ?? [];
-  const aprilCubeConfig = buildAprilCubeConfigFromLayoutJson(
-    EXAMPLE_APRILCUBE_LAYOUT_JSON,
-    readCornerOrderFromQueryValue(queryParameters.get("cornerOrder")),
-  );
+  const aprilCubeConfig = loadedAprilCubeConfig.aprilCubeConfig;
   const poseEstimationMarkers = undistortDetectedMarkers(
     detectedMarkers,
     cameraIntrinsics,
@@ -217,7 +254,7 @@ async function runStaticImageVerification(): Promise<void> {
     captureCanvas,
     detectedMarkers,
     pose: poseResult.success ? poseResult.pose : null,
-    cubeSizeMeters: aprilCubeConfig.cubeSize,
+    boxDimensionsMeters: loadedAprilCubeConfig.boxDimensionsMeters,
     cameraIntrinsics: cameraIntrinsics,
     distortionCoefficients,
   });

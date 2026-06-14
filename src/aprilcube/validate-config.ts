@@ -115,7 +115,7 @@ export function isValidAprilCubeConfig(config: AprilCubeConfig): boolean {
     }
   }
 
-  if (hasDuplicateFaceAssignment(config.faces)) {
+  if (config.cuboidLayout === undefined && hasDuplicateFaceAssignment(config.faces)) {
     return false;
   }
 

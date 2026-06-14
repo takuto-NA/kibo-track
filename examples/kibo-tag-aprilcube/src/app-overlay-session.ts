@@ -2,17 +2,13 @@
  * Overlay draw-input assembly and viewport display mode for the demo session.
  */
 import type { DetectedMarkerCorners, Pose } from "kibo-track";
-import {
-  buildAprilCubeConfigFromLayoutJson,
-  EXAMPLE_APRILCUBE_LAYOUT_JSON,
-} from "./aprilcube-config.js";
 import type { AppDomElements, AppRuntimeState } from "./app-runtime.js";
+import { computeMaxBoxDimensionMeters } from "./loaded-aprilcube-model-config.js";
 import {
   readOverlayDisplayModeFromSelectValue,
   shouldUseOverlayOnlyBackground,
 } from "./overlay-display-mode.js";
 import { drawOverlay, type OverlayDrawInput } from "./overlay.js";
-import { readCornerOrderFromSelectValue } from "./read-corner-order-selection.js";
 import {
   createThreeModelOverlay,
   disposeThreeModelOverlay,
@@ -39,7 +35,7 @@ function syncViewportOverlayDisplayMode(
 function startThreeModelOverlayLoadIfNeeded(
   domElements: AppDomElements,
   state: AppRuntimeState,
-  cubeSizeMeters: number,
+  referenceDimensionMeters: number,
 ): void {
   if (state.threeModelOverlaySession !== null || state.threeModelOverlayLoadPromise !== null) {
     return;
@@ -52,7 +48,7 @@ function startThreeModelOverlayLoadIfNeeded(
 
   state.threeModelOverlayLoadPromise = createThreeModelOverlay(
     domElements.threeModelCanvas,
-    cubeSizeMeters,
+    referenceDimensionMeters,
   )
     .then((threeModelOverlaySession) => {
       state.threeModelOverlaySession = threeModelOverlaySession;
@@ -72,14 +68,14 @@ function buildThreeModelOverlayRenderInput(
   domElements: AppDomElements,
   state: AppRuntimeState,
   pose: Pose | null,
-  cubeSizeMeters: number,
+  referenceDimensionMeters: number,
 ): ThreeModelOverlayRenderInput {
   return {
     overlayDisplayMode: state.overlayDisplayMode,
     cameraFromObjectPose: pose,
     cameraIntrinsics: state.scaledCameraIntrinsics,
     captureCanvas: domElements.captureCanvas,
-    cubeSizeMeters,
+    cubeSizeMeters: referenceDimensionMeters,
   };
 }
 
@@ -89,17 +85,18 @@ export function buildOverlayDrawInput(
   state: AppRuntimeState,
   detectedMarkers: ReadonlyArray<DetectedMarkerCorners>,
   pose: Pose | null,
-  cubeSizeMeters: number,
 ): OverlayDrawInput {
   state.overlayDisplayMode = readOverlayDisplayMode(domElements.overlayDisplayModeSelect);
   syncViewportOverlayDisplayMode(domElements.viewportElement, state.overlayDisplayMode);
+
+  const loadedConfig = state.loadedAprilCubeModelConfig;
 
   return {
     overlayCanvas: domElements.overlayCanvas,
     captureCanvas: domElements.captureCanvas,
     detectedMarkers,
     pose,
-    cubeSizeMeters,
+    boxDimensionsMeters: loadedConfig.boxDimensionsMeters,
     cameraIntrinsics: state.scaledCameraIntrinsics!,
     distortionCoefficients: state.distortionCoefficients,
     overlayDisplayMode: state.overlayDisplayMode,
@@ -111,17 +108,19 @@ export function renderThreeModelOverlayFrame(
   domElements: AppDomElements,
   state: AppRuntimeState,
   pose: Pose | null,
-  cubeSizeMeters: number,
 ): void {
   if (state.scaledCameraIntrinsics === null) {
     return;
   }
 
+  const referenceDimensionMeters = computeMaxBoxDimensionMeters(
+    state.loadedAprilCubeModelConfig.boxDimensionsMeters,
+  );
   const renderInput = buildThreeModelOverlayRenderInput(
     domElements,
     state,
     pose,
-    cubeSizeMeters,
+    referenceDimensionMeters,
   );
 
   if (!shouldDrawThreeModelOverlay(renderInput)) {
@@ -137,7 +136,7 @@ export function renderThreeModelOverlayFrame(
   }
 
   if (state.threeModelOverlaySession === null) {
-    startThreeModelOverlayLoadIfNeeded(domElements, state, cubeSizeMeters);
+    startThreeModelOverlayLoadIfNeeded(domElements, state, referenceDimensionMeters);
     return;
   }
 
@@ -154,16 +153,13 @@ export function renderOverlayFrames(
   state: AppRuntimeState,
   detectedMarkers: ReadonlyArray<DetectedMarkerCorners>,
   pose: Pose | null,
-  cubeSizeMeters: number,
 ): void {
   if (state.scaledCameraIntrinsics === null) {
     return;
   }
 
-  drawOverlay(
-    buildOverlayDrawInput(domElements, state, detectedMarkers, pose, cubeSizeMeters),
-  );
-  renderThreeModelOverlayFrame(domElements, state, pose, cubeSizeMeters);
+  drawOverlay(buildOverlayDrawInput(domElements, state, detectedMarkers, pose));
+  renderThreeModelOverlayFrame(domElements, state, pose);
 
   if (
     state.threeModelOverlaySession === null &&
@@ -171,7 +167,7 @@ export function renderOverlayFrames(
   ) {
     void state.threeModelOverlayLoadPromise
       .then(() => {
-        renderThreeModelOverlayFrame(domElements, state, pose, cubeSizeMeters);
+        renderThreeModelOverlayFrame(domElements, state, pose);
       })
       .catch(() => {
         // Load error is stored on state for diagnostics/UI follow-up.
@@ -200,17 +196,10 @@ export function redrawCurrentOverlayFrame(
     return;
   }
 
-  const aprilCubeConfig = buildAprilCubeConfigFromLayoutJson(
-    EXAMPLE_APRILCUBE_LAYOUT_JSON,
-    readCornerOrderFromSelectValue(domElements.cornerOrderSelect.value),
-  );
-
   renderOverlayFrames(
     domElements,
     state,
     state.detectedMarkers,
     state.trackedPose,
-    aprilCubeConfig.cubeSize,
   );
 }
-

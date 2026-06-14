@@ -1,10 +1,6 @@
 /**
  * Demo application event handlers: camera startup, detector, calibration, capture options.
  */
-import {
-  buildAprilCubeConfigFromLayoutJson,
-  EXAMPLE_APRILCUBE_LAYOUT_JSON,
-} from "./aprilcube-config.js";
 import { captureVideoFrameToGrayscale } from "./camera.js";
 import {
   INTRINSICS_REFERENCE_HEIGHT_PIXELS,
@@ -30,12 +26,23 @@ import {
   type CameraResolutionPixels,
 } from "./camera-resolution.js";
 import { startCamera } from "./camera-startup.js";
-import { initializeKiboTagDetector } from "./kibo-tag-detector.js";
+import {
+  initializeKiboTagDetector,
+  resetCachedKiboTagDetector,
+} from "./kibo-tag-detector.js";
 import type { AppDomElements, AppRuntimeState } from "./app-runtime.js";
-import { buildOverlayDrawInput } from "./app-overlay-session.js";
-import { startTrackingLoop } from "./app-tracking-loop.js";
+import {
+  buildOverlayDrawInput,
+  disposeAppThreeModelOverlaySession,
+  redrawCurrentOverlayFrame,
+} from "./app-overlay-session.js";
+import { startTrackingLoop, stopAppTrackingLoop } from "./app-tracking-loop.js";
 import { formatCameraStatusMessage, updateAppUi } from "./app-ui-text.js";
 import { drawOverlay } from "./overlay.js";
+import { parseAprilCubeConfigJsonText } from "./load-aprilcube-config-file.js";
+import {
+  formatLoadedAprilCubeConfigStatus,
+} from "./loaded-aprilcube-model-config.js";
 import { parseCalibrationJson } from "./parse-calibration-json.js";
 import {
   clearPersistedCalibration,
@@ -46,7 +53,89 @@ import {
   synchronizeOverlayCanvasSize,
   validateResolutionConsistency,
 } from "./resolution-gate.js";
+import { readCornerOrderFromSelectValue } from "./read-corner-order-selection.js";
 import { syncViewportCaptureAspectRatio } from "./viewport-layout.js";
+
+export function syncAprilCubeConfigStatus(
+  domElements: AppDomElements,
+  state: AppRuntimeState,
+): void {
+  if (state.aprilCubeConfigLoadError !== null) {
+    domElements.aprilCubeConfigStatusElement.textContent =
+      `aprilcube config error: ${state.aprilCubeConfigLoadError}`;
+    return;
+  }
+
+  domElements.aprilCubeConfigStatusElement.textContent = formatLoadedAprilCubeConfigStatus(
+    state.loadedAprilCubeModelConfig,
+  );
+}
+
+function resolveActiveKiboTagFamilyName(state: AppRuntimeState): string | null {
+  if (state.aprilCubeConfigLoadError !== null) {
+    return null;
+  }
+
+  return state.loadedAprilCubeModelConfig.kiboTagFamilyName;
+}
+
+/** Loads an official AprilCube config.json from the file picker. */
+export async function handleAprilCubeConfigFileChange(
+  domElements: AppDomElements,
+  state: AppRuntimeState,
+): Promise<void> {
+  const selectedFile = domElements.aprilCubeConfigFileInput.files?.[0];
+
+  if (selectedFile === undefined) {
+    return;
+  }
+
+  stopAppTrackingLoop(state);
+  disposeAppThreeModelOverlaySession(state);
+  resetCachedKiboTagDetector();
+  state.detector = null;
+  state.lifecycleState = state.mediaStream === null ? "idle" : "resolutionReady";
+
+  const configJsonText = await selectedFile.text();
+  const configLabel = selectedFile.name.replace(/\.json$/i, "");
+  const loadResult = parseAprilCubeConfigJsonText(
+    configJsonText,
+    configLabel,
+    readCornerOrderFromSelectValue(domElements.cornerOrderSelect.value),
+  );
+
+  if (!loadResult.success) {
+    state.aprilCubeConfigLoadError = loadResult.detail;
+    syncAprilCubeConfigStatus(domElements, state);
+    updateAppUi(
+      domElements,
+      state,
+      domElements.cameraStatusElement.textContent ?? "not started",
+      domElements.resolutionStatusElement.textContent ?? "not checked",
+      "blocked: invalid config",
+      domElements.poseStatusElement.textContent ?? "not estimated",
+    );
+    return;
+  }
+
+  state.aprilCubeConfigLoadError = null;
+  state.loadedAprilCubeModelConfig = loadResult.loadedConfig;
+  state.loadedAprilCubeConfigJsonText = configJsonText;
+  syncAprilCubeConfigStatus(domElements, state);
+
+  if (state.scaledCameraIntrinsics !== null) {
+    redrawCurrentOverlayFrame(domElements, state);
+  }
+
+  updateAppUi(
+    domElements,
+    state,
+    domElements.cameraStatusElement.textContent ?? "not started",
+    domElements.resolutionStatusElement.textContent ?? "not checked",
+    "not started",
+    domElements.poseStatusElement.textContent ?? "not estimated",
+  );
+}
 
 /** Starts the camera and runs resolution / intrinsics gates. */
 export async function handleStartCamera(
@@ -148,20 +237,16 @@ export async function handleStartCamera(
     ? "placeholder"
     : "calibrated";
 
-  const aprilCubeConfig = buildAprilCubeConfigFromLayoutJson(
-    EXAMPLE_APRILCUBE_LAYOUT_JSON,
-    "reversedCanonical",
-  );
-
   drawOverlay(
     buildOverlayDrawInput(
       domElements,
       state,
       [],
       null,
-      aprilCubeConfig.cubeSize,
     ),
   );
+
+  syncAprilCubeConfigStatus(domElements, state);
 
   updateAppUi(
     domElements,
@@ -182,6 +267,21 @@ export async function handleStartDetector(
     return;
   }
 
+  const kiboTagFamilyName = resolveActiveKiboTagFamilyName(state);
+
+  if (kiboTagFamilyName === null) {
+    syncAprilCubeConfigStatus(domElements, state);
+    updateAppUi(
+      domElements,
+      state,
+      domElements.cameraStatusElement.textContent ?? "cameraReady",
+      "resolutionReady",
+      "blocked: unsupported dict",
+      "blocked",
+    );
+    return;
+  }
+
   state.lifecycleState = "loadingDetector";
   updateAppUi(
     domElements,
@@ -192,7 +292,7 @@ export async function handleStartDetector(
     "waiting",
   );
 
-  const detectorLoadResult = await initializeKiboTagDetector();
+  const detectorLoadResult = await initializeKiboTagDetector(kiboTagFamilyName);
 
   if (!detectorLoadResult.success) {
     state.lifecycleState = "failed";
@@ -343,7 +443,7 @@ export async function handleProbeCameraFrameRates(
 }
 
 /** Initializes camera resolution select options on first load. */
-export function initializeCameraCaptureControls(domElements: AppDomElements): void {
+function initializeCameraCaptureControls(domElements: AppDomElements): void {
   renderCameraFacingModeSelectOptions(domElements.cameraFacingModeSelect);
   renderCameraResolutionSelectOptions(domElements.cameraResolutionSelect);
   syncViewportCaptureAspectRatio(

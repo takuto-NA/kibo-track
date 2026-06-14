@@ -4,8 +4,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildCubeCornerVertices,
+  buildCuboidCornerVertices,
   drawOverlay,
   projectCubeWireframe,
+  projectCuboidWireframe,
   projectFrontFaceCornersForPose,
 } from "./overlay.js";
 import { createMockCanvas2dContext } from "./test-helpers/mock-canvas-2d-context.js";
@@ -20,6 +22,35 @@ import {
 } from "./test-helpers/overlay-regression-fixtures.js";
 
 describe("overlay projection", () => {
+  it("builds eight cuboid corner vertices for non-cubic box dimensions", () => {
+    const cuboidVertices = buildCuboidCornerVertices([0.04, 0.04, 0.215]);
+    expect(cuboidVertices).toHaveLength(8);
+    expect(cuboidVertices[0]).toEqual([-0.02, -0.02, 0.1075]);
+    expect(cuboidVertices[1]).toEqual([0.02, -0.02, 0.1075]);
+  });
+
+  it("projects cuboid wireframe segments from a synthetic pose", () => {
+    const cameraIntrinsics = {
+      focalLengthX: 900,
+      focalLengthY: 900,
+      principalPointX: 320,
+      principalPointY: 240,
+    };
+    const pose = {
+      rotation: [0, 0, 0, 1] as const,
+      translation: [0, 0, 0.5] as const,
+    };
+
+    const wireframeSegments = projectCuboidWireframe(
+      pose,
+      [0.04, 0.04, 0.215],
+      cameraIntrinsics,
+    );
+
+    expect(wireframeSegments.length).toBeGreaterThan(0);
+    expect(wireframeSegments[0]?.length).toBe(2);
+  });
+
   it("builds eight cube corner vertices", () => {
     const cubeVertices = buildCubeCornerVertices(0.032);
     expect(cubeVertices).toHaveLength(8);
@@ -80,7 +111,11 @@ describe("drawOverlay canvas contract (Root Cause C)", () => {
       captureCanvas,
       detectedMarkers: [],
       pose: OVERLAY_REGRESSION_POSE,
-      cubeSizeMeters: OVERLAY_REGRESSION_CUBE_SIZE_METERS,
+      boxDimensionsMeters: [
+        OVERLAY_REGRESSION_CUBE_SIZE_METERS,
+        OVERLAY_REGRESSION_CUBE_SIZE_METERS,
+        OVERLAY_REGRESSION_CUBE_SIZE_METERS,
+      ],
       cameraIntrinsics: OVERLAY_REGRESSION_FIXED_INTRINSICS_640X480,
     });
 
@@ -112,7 +147,11 @@ describe("drawOverlay canvas contract (Root Cause C)", () => {
       captureCanvas,
       detectedMarkers: [],
       pose: null,
-      cubeSizeMeters: OVERLAY_REGRESSION_CUBE_SIZE_METERS,
+      boxDimensionsMeters: [
+        OVERLAY_REGRESSION_CUBE_SIZE_METERS,
+        OVERLAY_REGRESSION_CUBE_SIZE_METERS,
+        OVERLAY_REGRESSION_CUBE_SIZE_METERS,
+      ],
       cameraIntrinsics: OVERLAY_REGRESSION_FIXED_INTRINSICS_640X480,
     });
 

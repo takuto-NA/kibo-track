@@ -55,6 +55,13 @@ export default defineConfig({
             },
           },
           {
+            name: "chromium-aprilcube-config-loader",
+            testMatch: /aprilcube-config-loader\.spec\.ts/,
+            use: {
+              ...devices["Desktop Chrome"],
+            },
+          },
+          {
             name: "chromium-static-image",
             testMatch: /static-aprilcube-image\.spec\.ts/,
             timeout: 600_000,

@@ -57,7 +57,7 @@ _Avoid_: PoseMeasurement, detector state
 _Avoid_: probability, tracking confidence (unless explicitly scoped)
 
 **AprilCube adapter**:
-AprilCube config と検出済み marker corners から 2D–3D correspondences を作る adapter。core は marker 非依存。
+AprilCube config と検出済み marker corners から 2D–3D correspondences を作る adapter。公式 cuboid `config.json` は `parseAprilCubeCuboidConfigJson` で読める。core は marker 非依存。
 _Avoid_: AprilCube detector, core module
 
 ## Example dialogue

@@ -39,7 +39,7 @@ export interface OverlayDrawInput {
   readonly captureCanvas: HTMLCanvasElement;
   readonly detectedMarkers: ReadonlyArray<DetectedMarkerCorners>;
   readonly pose: Pose | null;
-  readonly cubeSizeMeters: number;
+  readonly boxDimensionsMeters: readonly [number, number, number];
   readonly cameraIntrinsics: CameraIntrinsics;
   readonly distortionCoefficients?: readonly number[];
   readonly overlayDisplayMode?: OverlayDisplayMode;
@@ -60,32 +60,41 @@ const CUBE_EDGE_INDEX_PAIRS: ReadonlyArray<readonly [number, number]> = [
   [3, 7],
 ];
 
-/** Builds the eight cube corner vertices centered at the origin. */
-export function buildCubeCornerVertices(cubeSizeMeters: number): ObjectPoint3D[] {
-  const halfCubeSize = cubeSizeMeters / 2;
+/** Builds the eight cuboid corner vertices centered at the origin. */
+export function buildCuboidCornerVertices(
+  boxDimensionsMeters: readonly [number, number, number],
+): ObjectPoint3D[] {
+  const halfExtentX = boxDimensionsMeters[0] / 2;
+  const halfExtentY = boxDimensionsMeters[1] / 2;
+  const halfExtentZ = boxDimensionsMeters[2] / 2;
 
   return [
-    [-halfCubeSize, -halfCubeSize, halfCubeSize],
-    [halfCubeSize, -halfCubeSize, halfCubeSize],
-    [halfCubeSize, halfCubeSize, halfCubeSize],
-    [-halfCubeSize, halfCubeSize, halfCubeSize],
-    [-halfCubeSize, -halfCubeSize, -halfCubeSize],
-    [halfCubeSize, -halfCubeSize, -halfCubeSize],
-    [halfCubeSize, halfCubeSize, -halfCubeSize],
-    [-halfCubeSize, halfCubeSize, -halfCubeSize],
+    [-halfExtentX, -halfExtentY, halfExtentZ],
+    [halfExtentX, -halfExtentY, halfExtentZ],
+    [halfExtentX, halfExtentY, halfExtentZ],
+    [-halfExtentX, halfExtentY, halfExtentZ],
+    [-halfExtentX, -halfExtentY, -halfExtentZ],
+    [halfExtentX, -halfExtentY, -halfExtentZ],
+    [halfExtentX, halfExtentY, -halfExtentZ],
+    [-halfExtentX, halfExtentY, -halfExtentZ],
   ];
 }
 
-/** Projects cube wireframe edges for overlay validation and drawing. */
-export function projectCubeWireframe(
+/** Builds the eight cube corner vertices centered at the origin. */
+export function buildCubeCornerVertices(cubeSizeMeters: number): ObjectPoint3D[] {
+  return buildCuboidCornerVertices([cubeSizeMeters, cubeSizeMeters, cubeSizeMeters]);
+}
+
+/** Projects cuboid wireframe edges for overlay validation and drawing. */
+export function projectCuboidWireframe(
   pose: Pose,
-  cubeSizeMeters: number,
+  boxDimensionsMeters: readonly [number, number, number],
   cameraIntrinsics: CameraIntrinsics,
   distortionCoefficients?: readonly number[],
 ): ImagePoint2D[][] {
-  const cubeVertices = buildCubeCornerVertices(cubeSizeMeters);
+  const cuboidVertices = buildCuboidCornerVertices(boxDimensionsMeters);
   const projectedVertices = distortImagePoints(
-    projectPoints(cubeVertices, pose, cameraIntrinsics),
+    projectPoints(cuboidVertices, pose, cameraIntrinsics),
     cameraIntrinsics,
     distortionCoefficients,
   );
@@ -95,11 +104,26 @@ export function projectCubeWireframe(
     const endPoint = projectedVertices[endIndex];
 
     if (startPoint === undefined || endPoint === undefined) {
-      throw new RangeError("Projected cube vertex is missing.");
+      throw new RangeError("Projected cuboid vertex is missing.");
     }
 
     return [startPoint, endPoint];
   });
+}
+
+/** Projects cube wireframe edges for overlay validation and drawing. */
+export function projectCubeWireframe(
+  pose: Pose,
+  cubeSizeMeters: number,
+  cameraIntrinsics: CameraIntrinsics,
+  distortionCoefficients?: readonly number[],
+): ImagePoint2D[][] {
+  return projectCuboidWireframe(
+    pose,
+    [cubeSizeMeters, cubeSizeMeters, cubeSizeMeters],
+    cameraIntrinsics,
+    distortionCoefficients,
+  );
 }
 
 function drawMarkerOutlines(
@@ -254,9 +278,9 @@ export function drawOverlay(input: OverlayDrawInput): void {
     return;
   }
 
-  const wireframeSegments = projectCubeWireframe(
+  const wireframeSegments = projectCuboidWireframe(
     input.pose,
-    input.cubeSizeMeters,
+    input.boxDimensionsMeters,
     input.cameraIntrinsics,
     input.distortionCoefficients,
   );

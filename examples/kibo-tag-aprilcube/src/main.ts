@@ -8,17 +8,21 @@ import {
 } from "./app-runtime.js";
 import {
   handleApplyCalibration,
+  handleAprilCubeConfigFileChange,
   handleClearCalibration,
   handleProbeCameraFrameRates,
   handleStartCamera,
   handleStartDetector,
   initializeCameraCaptureOptions,
+  syncAprilCubeConfigStatus,
   syncCameraCaptureResolutionPreview,
 } from "./app-handlers.js";
 import { redrawCurrentOverlayFrame, disposeAppThreeModelOverlaySession } from "./app-overlay-session.js";
 import { renderOverlayDisplayModeSelectOptions } from "./overlay-display-mode.js";
 import { stopAppTrackingLoop } from "./app-tracking-loop.js";
 import { updateAppUi } from "./app-ui-text.js";
+import { rebuildLoadedAprilCubeModelConfig } from "./loaded-aprilcube-model-config.js";
+import { readCornerOrderFromSelectValue } from "./read-corner-order-selection.js";
 
 function bindApplication(): void {
   const domElements = readAppDomElements();
@@ -56,6 +60,22 @@ function bindApplication(): void {
     handleClearCalibration(domElements, state);
   });
 
+  domElements.aprilCubeConfigFileInput.addEventListener("change", () => {
+    void handleAprilCubeConfigFileChange(domElements, state);
+  });
+
+  domElements.cornerOrderSelect.addEventListener("change", () => {
+    state.loadedAprilCubeModelConfig = rebuildLoadedAprilCubeModelConfig(
+      state.loadedAprilCubeConfigJsonText,
+      state.loadedAprilCubeModelConfig.configLabel,
+      readCornerOrderFromSelectValue(domElements.cornerOrderSelect.value),
+    );
+
+    if (state.scaledCameraIntrinsics !== null) {
+      redrawCurrentOverlayFrame(domElements, state);
+    }
+  });
+
   domElements.overlayDisplayModeSelect.addEventListener("change", () => {
     redrawCurrentOverlayFrame(domElements, state);
     updateAppUi(
@@ -77,6 +97,8 @@ function bindApplication(): void {
   });
 
   initializeCameraCaptureOptions(domElements);
+
+  syncAprilCubeConfigStatus(domElements, state);
 
   domElements.cameraResolutionSelect.addEventListener("change", () => {
     if (state.lifecycleState !== "idle" && state.lifecycleState !== "failed") {

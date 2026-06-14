@@ -16,6 +16,8 @@ Comparison between [AprilCube Python](https://github.com/younghyopark/aprilcube)
 | Lens distortion | Yes | Example undistort/distort; core pinhole (ADR 0003) | **Matched** (example layer) |
 | Python parity fixtures | N/A | Golden JSON + tolerance tests | **Matched** |
 | Optical-flow corner tracking | Yes | No | **Omitted** (non-goal) |
+| Official cuboid `config.json` loader (`load_cube_config` cuboid path) | Yes | Yes (`parseAprilCubeCuboidConfigJson`) | **Matched** |
+| Schema v2 explicit `markers[].corners_mm` | Yes | Reject with `unsupportedSchema` | **Omitted** (ADR 0005) |
 
 ## Regression tests
 
@@ -27,6 +29,7 @@ Comparison between [AprilCube Python](https://github.com/younghyopark/aprilcube)
 | One marker rejected (`degenerateConfiguration`) | `tests/aprilcube/single-face-planar.regression.test.ts` |
 | Tag geometry vs face-corner mismatch | `tests/aprilcube/geometry-mismatch.regression.test.ts` |
 | Three-marker outlier re-solve | `tests/aprilcube/static-image-detected-corners.regression.test.ts` |
+| Stick cuboid official JSON end-to-end | `tests/aprilcube/stick-cuboid-config.integration.test.ts` |
 | Distortion roundtrip in example layer | `examples/kibo-tag-aprilcube/src/camera-distortion.test.ts` |
 
 ## Verification checklist

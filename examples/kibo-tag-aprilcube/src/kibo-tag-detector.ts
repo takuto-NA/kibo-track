@@ -4,9 +4,7 @@
 import * as Comlink from "comlink";
 import type { DetectedMarkerCorners, ImagePoint2D } from "kibo-track";
 import {
-  APRILCUBE_MARKER_IDS,
   KIBO_TAG_ARUCO_BITS_CORRECTED,
-  KIBO_TAG_ARUCO_FAMILY_NAME,
   KIBO_TAG_WASM_MODULE_PATH,
   KIBO_TAG_WORKER_SCRIPT_PATH,
   MINIMUM_TAG_DECISION_MARGIN,
@@ -44,9 +42,8 @@ export interface KiboTagDetectorFailure {
 
 export type KiboTagDetectorLoadResult = KiboTagDetectorSuccess | KiboTagDetectorFailure;
 
-const configuredMarkerIdSet = new Set<number>(APRILCUBE_MARKER_IDS);
-
 let cachedDetector: KiboTagApriltagInstance | null = null;
+let cachedKiboTagFamilyName: string | null = null;
 
 /** Verifies that the kibo-tag WASM bundle is reachable before starting the worker. */
 export async function verifyKiboTagWasmModule(
@@ -60,9 +57,24 @@ export async function verifyKiboTagWasmModule(
   }
 }
 
+/** Applies the selected ArUco dictionary to an initialized detector instance. */
+export async function configureKiboTagDetectorDictionary(
+  detector: KiboTagApriltagInstance,
+  kiboTagFamilyName: string,
+): Promise<void> {
+  await detector.set_tag_family(kiboTagFamilyName, KIBO_TAG_ARUCO_BITS_CORRECTED);
+  cachedKiboTagFamilyName = kiboTagFamilyName;
+}
+
 /** Initializes the kibo-tag detector in a Web Worker via Comlink. */
-export async function initializeKiboTagDetector(): Promise<KiboTagDetectorLoadResult> {
+export async function initializeKiboTagDetector(
+  kiboTagFamilyName: string,
+): Promise<KiboTagDetectorLoadResult> {
   if (cachedDetector !== null) {
+    if (cachedKiboTagFamilyName !== kiboTagFamilyName) {
+      await configureKiboTagDetectorDictionary(cachedDetector, kiboTagFamilyName);
+    }
+
     return {
       success: true,
       detector: cachedDetector,
@@ -97,7 +109,7 @@ export async function initializeKiboTagDetector(): Promise<KiboTagDetectorLoadRe
 
     await detectorReadyPromise;
 
-    await detector.set_tag_family(KIBO_TAG_ARUCO_FAMILY_NAME, KIBO_TAG_ARUCO_BITS_CORRECTED);
+    await configureKiboTagDetectorDictionary(detector, kiboTagFamilyName);
     await detector.set_return_pose(0);
     await detector.set_return_solutions(0);
     await detector.set_max_detections(0);
@@ -120,12 +132,13 @@ export async function initializeKiboTagDetector(): Promise<KiboTagDetectorLoadRe
 /** Converts kibo-tag detections into kibo-track DetectedMarkerCorners. */
 export function convertKiboTagDetectionsToMarkerCorners(
   detections: ReadonlyArray<KiboTagDetection>,
+  configuredTagIdSet: ReadonlySet<number>,
   minimumDecisionMargin: number = MINIMUM_TAG_DECISION_MARGIN,
 ): DetectedMarkerCorners[] {
   const markerCorners: DetectedMarkerCorners[] = [];
 
   for (const detection of detections) {
-    if (!configuredMarkerIdSet.has(detection.id)) {
+    if (!configuredTagIdSet.has(detection.id)) {
       continue;
     }
 
@@ -156,8 +169,14 @@ export async function detectAprilCubeMarkers(
   grayscaleBuffer: Uint8Array,
   imageWidth: number,
   imageHeight: number,
+  configuredTagIdSet: ReadonlySet<number>,
 ): Promise<DetectedMarkerCorners[]> {
   const detections = await detector.detect(grayscaleBuffer, imageWidth, imageHeight);
-  return convertKiboTagDetectionsToMarkerCorners(detections);
+  return convertKiboTagDetectionsToMarkerCorners(detections, configuredTagIdSet);
 }
-
+
+/** Clears cached detector state after config changes that require a fresh worker. */
+export function resetCachedKiboTagDetector(): void {
+  cachedDetector = null;
+  cachedKiboTagFamilyName = null;
+}

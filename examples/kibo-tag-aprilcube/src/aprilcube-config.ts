@@ -1,22 +1,12 @@
 /**
  * Maps the printed AprilCube layout JSON to kibo-track AprilCubeConfig.
  */
-import type { AprilCubeConfig, AprilCubeCuboidLayout, AprilCubeFaceName } from "kibo-track";
+import {
+  parseAprilCubeCuboidConfigJson,
+  type AprilCubeConfig,
+  type AprilCubeCuboidLayout,
+} from "kibo-track";
 import type { AprilCubeLayoutJson, CornerOrderSelection } from "./types.js";
-
-/** Millimeters per meter for layout JSON unit conversion. */
-const MILLIMETERS_PER_METER = 1000;
-
-const GRID_DIMENSION_COUNT = 3;
-
-const FACE_AXIS_TO_APRILCUBE_FACE: Readonly<Record<string, AprilCubeFaceName>> = {
-  "+X": "right",
-  "-X": "left",
-  "+Y": "bottom",
-  "-Y": "top",
-  "+Z": "front",
-  "-Z": "back",
-};
 
 /** Example AprilCube layout JSON from the printed cube configuration. */
 export const EXAMPLE_APRILCUBE_LAYOUT_JSON: AprilCubeLayoutJson = {
@@ -39,42 +29,30 @@ export const EXAMPLE_APRILCUBE_LAYOUT_JSON: AprilCubeLayoutJson = {
   box_dims: [32.0, 32.0, 32.0],
 };
 
-/** Converts millimeters to meters for kibo-track object-space units. */
-export function convertMillimetersToMeters(sizeMillimeters: number): number {
-  return sizeMillimeters / MILLIMETERS_PER_METER;
-}
-
-/** Parses AprilCube grid string "WxHxD" into tag counts per axis. */
-export function parseAprilCubeGridString(
-  gridString: string,
-): readonly [number, number, number] {
-  const gridParts = gridString.split("x").map((part) => Number(part));
-
-  if (gridParts.length !== GRID_DIMENSION_COUNT || gridParts.some((part) => !Number.isInteger(part) || part < 1)) {
-    throw new RangeError(`Invalid AprilCube grid string: ${gridString}`);
-  }
-
-  return [gridParts[0]!, gridParts[1]!, gridParts[2]!];
-}
+export {
+  convertMillimetersToMeters,
+  parseAprilCubeGridString,
+} from "kibo-track";
 
 /** Builds cuboid layout parameters from AprilCube config.json fields. */
 export function buildCuboidLayoutFromLayoutJson(
   layoutJson: AprilCubeLayoutJson,
 ): AprilCubeCuboidLayout {
-  return {
-    grid: parseAprilCubeGridString(layoutJson.grid),
-    tagIds: [...layoutJson.tag_ids],
-    tagSizeMeters: convertMillimetersToMeters(layoutJson.tag_size_mm),
-    cellSizeMeters: convertMillimetersToMeters(layoutJson.cell_size_mm),
-    marginCells: layoutJson.margin_cells,
-    borderCells: layoutJson.border_cells,
-    markerPixels: layoutJson.marker_pixels,
-    boxDimensionsMeters: [
-      convertMillimetersToMeters(layoutJson.box_dims[0]),
-      convertMillimetersToMeters(layoutJson.box_dims[1]),
-      convertMillimetersToMeters(layoutJson.box_dims[2]),
-    ],
-  };
+  const parseResult = parseAprilCubeCuboidConfigJson(layoutJson);
+
+  if (!parseResult.success) {
+    throw new Error(
+      `Failed to build cuboid layout from layout JSON: ${parseResult.reason} ${parseResult.detail}`,
+    );
+  }
+
+  const cuboidLayout = parseResult.config.cuboidLayout;
+
+  if (cuboidLayout === undefined) {
+    throw new RangeError("Parsed AprilCube layout JSON is missing cuboidLayout.");
+  }
+
+  return cuboidLayout;
 }
 
 /** Builds AprilCubeConfig from the layout JSON and optional corner order. */
@@ -82,24 +60,13 @@ export function buildAprilCubeConfigFromLayoutJson(
   layoutJson: AprilCubeLayoutJson,
   cornerOrder: CornerOrderSelection = "canonical",
 ): AprilCubeConfig {
-  const faceMap: Record<number, AprilCubeFaceName> = {};
+  const parseResult = parseAprilCubeCuboidConfigJson(layoutJson, cornerOrder);
 
-  for (const [faceAxisLabel, markerIds] of Object.entries(layoutJson.faces)) {
-    const aprilCubeFaceName = FACE_AXIS_TO_APRILCUBE_FACE[faceAxisLabel];
-
-    if (aprilCubeFaceName === undefined) {
-      throw new RangeError(`Unsupported face axis label: ${faceAxisLabel}`);
-    }
-
-    for (const markerId of markerIds) {
-      faceMap[markerId] = aprilCubeFaceName;
-    }
+  if (!parseResult.success) {
+    throw new Error(
+      `Failed to build AprilCube config from layout JSON: ${parseResult.reason} ${parseResult.detail}`,
+    );
   }
 
-  return {
-    cubeSize: convertMillimetersToMeters(layoutJson.box_dims[0]),
-    faces: faceMap,
-    cornerOrder,
-    cuboidLayout: buildCuboidLayoutFromLayoutJson(layoutJson),
-  };
+  return parseResult.config;
 }

@@ -51,6 +51,18 @@
             <option value="reversedCanonical" selected>reversedCanonical</option>
           </select>
         </label>
+        <label>
+          AprilCube config.json
+          <input
+            id="aprilcube-config-file-input"
+            data-testid="aprilcube-config-file-input"
+            type="file"
+            accept=".json,application/json"
+          />
+        </label>
+        <p id="aprilcube-config-status" data-testid="aprilcube-config-status">
+          loaded: 1x1x1_24_cube | dict=4x4_100 | tags=6 | box=32x32x32mm
+        </p>
         <label class="calibration-label">
           Camera calibration JSON
           <textarea
