@@ -62,6 +62,16 @@ export default defineConfig({
             },
           },
           {
+            name: "chromium-multi-cube",
+            testMatch: /multi-cube\.spec\.ts/,
+            use: {
+              ...devices["Desktop Chrome"],
+              launchOptions: {
+                args: FAKE_CAMERA_LAUNCH_ARGS,
+              },
+            },
+          },
+          {
             name: "chromium-static-image",
             testMatch: /static-aprilcube-image\.spec\.ts/,
             timeout: 600_000,

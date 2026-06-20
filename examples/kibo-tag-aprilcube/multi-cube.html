@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kibo-track Multi-Cube AprilCube Example (16 cubes)</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <header>
+        <h1>Kibo-track Multi-Cube AprilCube Example</h1>
+        <p class="subtitle">16 independent 1x1x1_24_cubes · kibo-tag WASM + estimateAprilCubePose per cube</p>
+        <p class="subtitle"><a href="/">Back to single-cube example</a></p>
+      </header>
+
+      <section id="controls">
+        <button id="start-camera-button" type="button">Start Camera</button>
+        <button id="start-detector-button" type="button" disabled>Start Detector</button>
+        <button id="load-multi-cube-configs-button" type="button" data-testid="load-multi-cube-configs-button">
+          Load 16 cube configs
+        </button>
+        <label>
+          Camera
+          <select id="camera-facing-mode-select" data-testid="camera-facing-mode-select">
+            <option value="environment" selected>Back (environment)</option>
+            <option value="user">Front (user)</option>
+          </select>
+        </label>
+        <label>
+          Camera resolution
+          <select id="camera-resolution-select" data-testid="camera-resolution-select"></select>
+        </label>
+        <label>
+          Camera FPS
+          <select id="camera-frame-rate-select" data-testid="camera-frame-rate-select">
+            <option value="deviceDefault" selected>Device default</option>
+          </select>
+        </label>
+        <button id="probe-frame-rates-button" type="button" data-testid="probe-frame-rates-button">
+          Probe frame rates
+        </button>
+        <p id="camera-frame-rate-hint" data-testid="camera-frame-rate-hint">
+          Common frame rates are listed. Start camera to read device limits, or probe first.
+        </p>
+        <label>
+          Corner order
+          <select id="corner-order-select">
+            <option value="canonical">canonical</option>
+            <option value="clockwiseRotate90">clockwiseRotate90</option>
+            <option value="clockwiseRotate180">clockwiseRotate180</option>
+            <option value="clockwiseRotate270">clockwiseRotate270</option>
+            <option value="reverse">reverse</option>
+            <option value="reversedCanonical" selected>reversedCanonical</option>
+          </select>
+        </label>
+        <p id="multi-cube-config-status" data-testid="multi-cube-config-status">
+          config: not loaded
+        </p>
+        <label class="calibration-label">
+          Camera calibration JSON
+          <textarea
+            id="calibration-json-input"
+            data-testid="calibration-json-input"
+            rows="6"
+            spellcheck="false"
+            placeholder='{"camera_matrix":[[fx,0,cx],[0,fy,cy],[0,0,1]],"img_size":[1280,720]}'
+          ></textarea>
+        </label>
+        <button id="apply-calibration-button" type="button">Apply Calibration</button>
+        <button id="clear-calibration-button" type="button">Clear Calibration</button>
+        <label class="overlay-mode-label">
+          Overlay
+          <select id="overlay-display-mode-select" data-testid="overlay-display-mode-select">
+            <option value="cameraWithWireframe" selected>Camera + wireframe</option>
+            <option value="wireframeOnly">Wireframe only</option>
+          </select>
+        </label>
+        <p id="calibration-status" data-testid="calibration-status">calibration: not loaded</p>
+      </section>
+
+      <section id="viewport">
+        <video id="camera-video" autoplay playsinline muted hidden></video>
+        <canvas id="capture-canvas" data-testid="capture-canvas"></canvas>
+        <canvas id="overlay-canvas" data-testid="overlay-canvas"></canvas>
+      </section>
+
+      <section id="detection-results-panel" data-testid="detection-results-panel">
+        <h2>Detected markers</h2>
+        <pre id="detected-markers-text" data-testid="detected-markers-text">Detected markers: 0</pre>
+      </section>
+
+      <section id="per-cube-status-panel" data-testid="per-cube-status-panel">
+        <h2>Per-cube tracking (16)</h2>
+        <pre id="per-cube-status-grid" data-testid="per-cube-status-grid">(not loaded)</pre>
+      </section>
+
+      <section id="status-panel" data-testid="status-panel">
+        <p>Status: <span id="app-status" data-testid="app-status">idle</span></p>
+        <p>Camera: <span id="camera-status" data-testid="camera-status">not started</span></p>
+        <p>Resolution: <span id="resolution-status" data-testid="resolution-status">not checked</span></p>
+        <p>Detector: <span id="detector-status" data-testid="detector-status">not started</span></p>
+        <p>Pose: <span id="pose-status" data-testid="pose-status">not estimated</span></p>
+      </section>
+
+      <section id="diagnostics-panel" data-testid="diagnostics-panel">
+        <h2>Diagnostics</h2>
+        <pre id="diagnostics-text" data-testid="diagnostics-text">Waiting to start...</pre>
+      </section>
+    </main>
+
+    <script type="module" src="/src/multi-cube-main.ts"></script>
+  </body>
+</html>

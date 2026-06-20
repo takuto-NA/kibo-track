@@ -18,9 +18,11 @@ export default defineConfig(({ mode }) => {
   const isDemoPagesMode = mode === DEMO_PAGES_VITE_MODE;
   const pagesRollupInput: Record<string, string> = {
     main: path.resolve(currentDirectory, "index.html"),
+    multiCube: path.resolve(currentDirectory, "multi-cube.html"),
   };
   const defaultRollupInput: Record<string, string> = {
     main: path.resolve(currentDirectory, "index.html"),
+    multiCube: path.resolve(currentDirectory, "multi-cube.html"),
     staticImageVerify: path.resolve(currentDirectory, "static-image-verify.html"),
   };
   const rollupInput = isDemoPagesMode ? pagesRollupInput : defaultRollupInput;

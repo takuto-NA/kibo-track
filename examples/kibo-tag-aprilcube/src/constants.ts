@@ -92,3 +92,29 @@ export const AXIS_Z_COLOR = "#4488ff";
 
 /** Axis length in cube units for overlay drawing. */
 export const AXIS_LENGTH_CUBE_UNITS = 0.05;
+
+/** Number of independent AprilCubes tracked by the multi-cube demo. */
+export const MULTI_CUBE_CONFIG_COUNT = 16;
+
+/** Tags per AprilCube cuboid (one per face for a 1x1x1 grid). */
+export const MULTI_CUBE_TAGS_PER_CUBE = 6;
+
+/** Public-path fixture filenames for the 16 AprilCube config.json files, in cube-index order. */
+export const MULTI_CUBE_CONFIG_FIXTURE_FILENAMES: readonly string[] = [
+  "00_1x1x1_24_cube.json",
+  "01_1x1x1_24_cube_ids_06_11.json",
+  "02_1x1x1_24_cube_ids_12_17.json",
+  "03_1x1x1_24_cube_ids_18_23.json",
+  "04_1x1x1_24_cube_ids_24_29.json",
+  "05_1x1x1_24_cube_ids_30_35.json",
+  "06_1x1x1_24_cube_ids_36_41.json",
+  "07_1x1x1_24_cube_ids_42_47.json",
+  "08_1x1x1_24_cube_ids_48_53.json",
+  "09_1x1x1_24_cube_ids_54_59.json",
+  "10_1x1x1_24_cube_ids_60_65.json",
+  "11_1x1x1_24_cube_ids_66_71.json",
+  "12_1x1x1_24_cube_ids_72_77.json",
+  "13_1x1x1_24_cube_ids_78_83.json",
+  "14_1x1x1_24_cube_ids_84_89.json",
+  "15_1x1x1_24_cube_ids_90_95.json",
+];
