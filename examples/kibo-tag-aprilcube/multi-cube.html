@@ -73,7 +73,9 @@
         <label class="overlay-mode-label">
           Overlay
           <select id="overlay-display-mode-select" data-testid="overlay-display-mode-select">
-            <option value="cameraWithWireframe" selected>Camera + wireframe</option>
+            <option value="cameraWithModel" selected>Camera + 3D model</option>
+            <option value="modelOnly">3D model only</option>
+            <option value="cameraWithWireframe">Camera + wireframe</option>
             <option value="wireframeOnly">Wireframe only</option>
           </select>
         </label>
@@ -84,6 +86,7 @@
         <video id="camera-video" autoplay playsinline muted hidden></video>
         <canvas id="capture-canvas" data-testid="capture-canvas"></canvas>
         <canvas id="overlay-canvas" data-testid="overlay-canvas"></canvas>
+        <canvas id="three-model-canvas" data-testid="three-model-canvas"></canvas>
       </section>
 
       <section id="detection-results-panel" data-testid="detection-results-panel">

@@ -7,6 +7,12 @@ import { undistortDetectedMarkers } from "./camera-distortion.js";
 import { detectAprilCubeMarkers } from "./kibo-tag-detector.js";
 import { partitionDetectedMarkersByCubeIndex } from "./multi-cube-config.js";
 import { drawMultiCubeOverlay } from "./multi-cube-overlay.js";
+import {
+  createMultiCubeThreeOverlay,
+  renderMultiCubeThreeOverlay,
+  disposeMultiCubeThreeOverlay,
+  type MultiCubeThreeOverlaySession,
+} from "./multi-cube-3d-overlay.js";
 import { MULTI_CUBE_CONFIG_COUNT } from "./constants.js";
 import type {
   MultiCubeAppDomElements,
@@ -217,6 +223,8 @@ async function runMultiCubeTrackingFrame(
     overlayDisplayMode: state.overlayDisplayMode,
   });
 
+  renderMultiCubeThreeOverlayFrame(domElements, state);
+
   const trackingCubeCount = state.perCubeStatuses.filter(
     (status) => status.trackerState === "tracking",
   ).length;
@@ -230,6 +238,66 @@ async function runMultiCubeTrackingFrame(
     "detectorReady",
     poseMessage,
   );
+}
+
+/** Renders the 3D overlay frame, starting the model load if needed. */
+export function renderMultiCubeThreeOverlayFrame(
+  domElements: MultiCubeAppDomElements,
+  state: MultiCubeAppRuntimeState,
+): void {
+  if (state.scaledCameraIntrinsics === null || state.multiCubeConfigSet === null) {
+    return;
+  }
+
+  const cubeSizeMeters = state.multiCubeConfigSet.cubes[0]!.boxDimensionsMeters[0]!;
+  const renderInput = {
+    overlayDisplayMode: state.overlayDisplayMode,
+    cubePoses: state.trackedPoses,
+    cameraIntrinsics: state.scaledCameraIntrinsics,
+    captureCanvas: domElements.captureCanvas,
+    cubeSizeMeters,
+  };
+
+  if (state.threeOverlaySession !== null) {
+    renderMultiCubeThreeOverlay(
+      state.threeOverlaySession,
+      domElements.threeModelCanvas,
+      renderInput,
+    );
+    return;
+  }
+
+  // Start loading 3D models on first frame that requires them.
+  if (state.threeOverlayLoadPromise === null && state.threeOverlayLoadError === null) {
+    state.threeOverlayLoadPromise = createMultiCubeThreeOverlay(
+      domElements.threeModelCanvas,
+      cubeSizeMeters,
+    )
+      .then((session: MultiCubeThreeOverlaySession) => {
+        state.threeOverlaySession = session;
+        state.threeOverlayLoadPromise = null;
+        state.threeOverlayLoadError = null;
+        return session;
+      })
+      .catch((error: unknown) => {
+        state.threeOverlayLoadPromise = null;
+        state.threeOverlayLoadError =
+          error instanceof Error ? error.message : "3D model load failed";
+        return null;
+      });
+  }
+}
+
+/** Disposes the 3D overlay session and releases GPU resources. */
+export function disposeMultiCubeThreeOverlaySession(
+  state: MultiCubeAppRuntimeState,
+): void {
+  if (state.threeOverlaySession !== null) {
+    disposeMultiCubeThreeOverlay(state.threeOverlaySession);
+    state.threeOverlaySession = null;
+  }
+  state.threeOverlayLoadPromise = null;
+  state.threeOverlayLoadError = null;
 }
 
 /** Starts the requestAnimationFrame multi-cube tracking loop. */

@@ -22,6 +22,7 @@ import {
 import type { KiboTagApriltagInstance } from "./kibo-tag-detector.js";
 import { DEFAULT_OVERLAY_DISPLAY_MODE } from "./overlay-display-mode.js";
 import type { MultiCubeConfigSet } from "./multi-cube-config.js";
+import type { MultiCubeThreeOverlaySession } from "./multi-cube-3d-overlay.js";
 import type {
   AppLifecycleState,
   CameraFacingModeSelection,
@@ -71,6 +72,7 @@ export interface MultiCubeAppDomElements {
   readonly videoElement: HTMLVideoElement;
   readonly captureCanvas: HTMLCanvasElement;
   readonly overlayCanvas: HTMLCanvasElement;
+  readonly threeModelCanvas: HTMLCanvasElement;
 }
 
 export interface MultiCubeAppRuntimeState {
@@ -101,6 +103,9 @@ export interface MultiCubeAppRuntimeState {
   multiCubeConfigSet: MultiCubeConfigSet | null;
   multiCubeConfigLoadError: string | null;
   multiCubeConfigLoading: boolean;
+  threeOverlaySession: MultiCubeThreeOverlaySession | null;
+  threeOverlayLoadPromise: Promise<MultiCubeThreeOverlaySession | null> | null;
+  threeOverlayLoadError: string | null;
 }
 
 /** Reads required DOM elements for the multi-cube demo application. */
@@ -132,6 +137,7 @@ export function readMultiCubeAppDomElements(): MultiCubeAppDomElements {
   const videoElement = document.querySelector<HTMLVideoElement>("#camera-video");
   const captureCanvas = document.querySelector<HTMLCanvasElement>("#capture-canvas");
   const overlayCanvas = document.querySelector<HTMLCanvasElement>("#overlay-canvas");
+  const threeModelCanvas = document.querySelector<HTMLCanvasElement>("#three-model-canvas");
 
   if (
     startCameraButton === null ||
@@ -160,7 +166,8 @@ export function readMultiCubeAppDomElements(): MultiCubeAppDomElements {
     viewportElement === null ||
     videoElement === null ||
     captureCanvas === null ||
-    overlayCanvas === null
+    overlayCanvas === null ||
+    threeModelCanvas === null
   ) {
     throw new Error("Required DOM elements are missing for multi-cube demo.");
   }
@@ -193,6 +200,7 @@ export function readMultiCubeAppDomElements(): MultiCubeAppDomElements {
     videoElement,
     captureCanvas,
     overlayCanvas,
+    threeModelCanvas,
   };
 }
 
@@ -279,5 +287,8 @@ export function createInitialMultiCubeAppRuntimeState(): MultiCubeAppRuntimeStat
     multiCubeConfigSet: null,
     multiCubeConfigLoadError: null,
     multiCubeConfigLoading: false,
+    threeOverlaySession: null,
+    threeOverlayLoadPromise: null,
+    threeOverlayLoadError: null,
   };
 }

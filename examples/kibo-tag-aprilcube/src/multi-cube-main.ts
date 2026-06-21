@@ -48,6 +48,8 @@ import { drawMultiCubeOverlay } from "./multi-cube-overlay.js";
 import {
   startMultiCubeTrackingLoop,
   stopMultiCubeTrackingLoop,
+  disposeMultiCubeThreeOverlaySession,
+  renderMultiCubeThreeOverlayFrame,
 } from "./multi-cube-tracking-loop.js";
 import { updateMultiCubeAppUi } from "./multi-cube-ui-text.js";
 import { formatMultiCubeCameraStatusMessage } from "./multi-cube-ui-text.js";
@@ -66,10 +68,12 @@ function bindMultiCubeApplication(): void {
   const domElements = readMultiCubeAppDomElements();
   const state = createInitialMultiCubeAppRuntimeState();
 
-  // Render overlay select options for the multi-cube page (wireframe-only modes).
+  // Render overlay select options for the multi-cube page (all 4 modes, 3D model default).
   const overlaySelect = domElements.overlayDisplayModeSelect;
   overlaySelect.replaceChildren();
   const overlayOptions: ReadonlyArray<{ readonly value: OverlayDisplayMode; readonly label: string }> = [
+    { value: "cameraWithModel", label: "Camera + 3D model" },
+    { value: "modelOnly", label: "3D model only" },
     { value: "cameraWithWireframe", label: "Camera + wireframe" },
     { value: "wireframeOnly", label: "Wireframe only" },
   ];
@@ -79,14 +83,36 @@ function bindMultiCubeApplication(): void {
     optionElement.textContent = optionDefinition.label;
     overlaySelect.appendChild(optionElement);
   }
-  overlaySelect.value = "cameraWithWireframe";
+  overlaySelect.value = "cameraWithModel";
 
   function refreshOverlayDisplayMode(): void {
     state.overlayDisplayMode = readOverlayDisplayModeFromSelectValue(overlaySelect.value);
     domElements.viewportElement.classList.toggle(
       "viewport-overlay-only-background",
-      state.overlayDisplayMode === "wireframeOnly",
+      state.overlayDisplayMode === "wireframeOnly" ||
+        state.overlayDisplayMode === "modelOnly",
     );
+  }
+
+  function refreshUiAfterThreeOverlayLoad(): void {
+    if (state.threeOverlayLoadPromise === null) {
+      return;
+    }
+
+    void state.threeOverlayLoadPromise.then(() => {
+      updateMultiCubeAppUi(
+        domElements,
+        state,
+        domElements.cameraStatusElement.textContent ?? "not started",
+        domElements.resolutionStatusElement.textContent ?? "not checked",
+        domElements.detectorStatusElement.textContent ?? "not started",
+        domElements.poseStatusElement.textContent ?? "not estimated",
+      );
+
+      if (state.threeOverlaySession !== null && state.scaledCameraIntrinsics !== null) {
+        renderMultiCubeThreeOverlayFrame(domElements, state);
+      }
+    });
   }
 
   function redrawCurrentMultiCubeOverlayFrame(): void {
@@ -104,6 +130,9 @@ function bindMultiCubeApplication(): void {
       distortionCoefficients: state.distortionCoefficients,
       overlayDisplayMode: state.overlayDisplayMode,
     });
+
+    renderMultiCubeThreeOverlayFrame(domElements, state);
+    refreshUiAfterThreeOverlayLoad();
   }
 
   async function handleLoadMultiCubeConfigs(): Promise<void> {
@@ -267,6 +296,9 @@ function bindMultiCubeApplication(): void {
       distortionCoefficients: state.distortionCoefficients,
       overlayDisplayMode: state.overlayDisplayMode,
     });
+
+    renderMultiCubeThreeOverlayFrame(domElements, state);
+    refreshUiAfterThreeOverlayLoad();
 
     updateMultiCubeAppUi(
       domElements,
@@ -514,6 +546,7 @@ function bindMultiCubeApplication(): void {
 
   window.addEventListener("pagehide", () => {
     stopMultiCubeTrackingLoop(state);
+    disposeMultiCubeThreeOverlaySession(state);
     stopCameraStream(state.mediaStream);
     resetCachedKiboTagDetector();
   });

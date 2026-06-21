@@ -38,6 +38,14 @@ test.describe("multi-cube demo browser gate", () => {
 
     await expect(page.locator("#per-cube-status-grid")).toContainText("[00]");
     await expect(page.locator("#per-cube-status-grid")).toContainText("[15]");
+    await expect(page.locator("#per-cube-status-grid")).toContainText("model=Chick");
+    await expect(page.locator("#per-cube-status-grid")).toContainText("model=Sword_Diamond");
+  });
+
+  test("defaults to Camera + 3D model overlay mode", async ({ page }) => {
+    await page.goto("/multi-cube.html");
+
+    await expect(page.locator("#overlay-display-mode-select")).toHaveValue("cameraWithModel");
   });
 
   test("reaches resolutionReady with fake camera and keeps 16-cube grid visible", async ({ page }) => {
@@ -63,6 +71,33 @@ test.describe("multi-cube demo browser gate", () => {
     const diagnosticsText = diagnosticsCollector.snapshot.diagnosticsText;
     expect(diagnosticsText).toContain("multiCubeConfigLoaded: true");
     expect(diagnosticsText).toContain("cubeTracking: 0/16");
+    expect(diagnosticsText).toContain("overlayDisplayMode: cameraWithModel");
+
+    diagnosticsCollector.assertClean();
+  });
+
+  test("loads 16 glTF 3D models after camera startup in cameraWithModel mode", async ({ page }) => {
+    await page.goto("/multi-cube.html");
+
+    await expect(page.locator("#multi-cube-config-status")).toContainText("loaded: 16 cubes", {
+      timeout: 15_000,
+    });
+
+    await page.locator("#start-camera-button").click();
+
+    await expect(page.locator("#app-status")).toHaveText("resolutionReady", {
+      timeout: 30_000,
+    });
+
+    // The 3D overlay starts loading after camera startup. Wait for it to complete.
+    await expect(page.locator("#diagnostics-text")).toContainText("threeOverlayLoaded: true", {
+      timeout: 30_000,
+    });
+
+    await readDiagnosticsFromPage(page, diagnosticsCollector);
+
+    const diagnosticsText = diagnosticsCollector.snapshot.diagnosticsText;
+    expect(diagnosticsText).toContain("threeOverlayLoadError: none");
 
     diagnosticsCollector.assertClean();
   });

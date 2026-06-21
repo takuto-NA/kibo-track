@@ -3,6 +3,7 @@
  */
 import { MULTI_CUBE_CONFIG_COUNT } from "./constants.js";
 import { buildMultiCubePalette } from "./multi-cube-color.js";
+import { readMultiCubeModelLabel } from "./multi-cube-model-assignment.js";
 import type {
   MultiCubeAppDomElements,
   MultiCubeAppRuntimeState,
@@ -56,6 +57,8 @@ function formatDiagnostics(state: MultiCubeAppRuntimeState): string {
     `multiCubeConfigLoaded: ${state.multiCubeConfigSet !== null}`,
     `multiCubeConfigLoading: ${state.multiCubeConfigLoading}`,
     `multiCubeConfigError: ${state.multiCubeConfigLoadError ?? "none"}`,
+    `threeOverlayLoaded: ${state.threeOverlaySession !== null}`,
+    `threeOverlayLoadError: ${state.threeOverlayLoadError ?? "none"}`,
     `overlayDisplayMode: ${state.overlayDisplayMode}`,
     `requestedCameraFacingMode: ${state.requestedCameraFacingModeSelection}`,
     `actualCameraFacingMode: ${state.actualCameraFacingMode ?? "unknown"}`,
@@ -125,7 +128,9 @@ function formatPerCubeStatusRow(status: MultiCubePerCubeStatus, cubeColor: strin
       ? "—"
       : `${status.tagIds[0]}..${status.tagIds[status.tagIds.length - 1]}`;
 
-  return `[${status.cubeIndex.toString().padStart(2, "0")}] ${status.trackerState.padEnd(8)} markers=${status.detectedMarkerCount} ${status.poseMode} reproj=${reprojText}${failureText} tags=${tagRangeText} color=${cubeColor}`;
+  const modelLabel = readMultiCubeModelLabel(status.cubeIndex);
+
+  return `[${status.cubeIndex.toString().padStart(2, "0")}] ${status.trackerState.padEnd(8)} markers=${status.detectedMarkerCount} ${status.poseMode} reproj=${reprojText}${failureText} tags=${tagRangeText} model=${modelLabel} color=${cubeColor}`;
 }
 
 function renderPerCubeStatusGrid(
